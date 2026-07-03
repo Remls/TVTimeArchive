@@ -1413,6 +1413,15 @@ function openShowDetail(show) {
   }
   for (const k in datesByEp) datesByEp[k].sort((a, b) => (a ? a.getTime() : 0) - (b ? b.getTime() : 0));
 
+  // Ratings & reactions this show received, per episode (deduped by decoded label).
+  const reactsByEp = {};
+  for (const r of STATE.model.reactions.list) {
+    if (r.kind !== 'episode' || norm(r.title) !== norm(show.title) || r.reactionId == null) continue;
+    const label = reactionChipText(r.reactionId, r.source);
+    const key = `${r.season}|${r.episode}`;
+    (reactsByEp[key] ||= new Set()).add(label);
+  }
+
   const body = el('div');
   root.append(body);
   const key = Enrichment.keyFor(show.id, show.title);
@@ -1440,7 +1449,7 @@ function openShowDetail(show) {
       note.append(el('button', { class: 'btn secondary', text: failed ? '↻ Retry' : 'Load episodes', onclick: refetch }));
     }
     body.append(note);
-    renderSeasons(body, datesByEp, epMap, v && v.i);
+    renderSeasons(body, datesByEp, epMap, v && v.i, reactsByEp);
   };
 
   const cached = Enrichment.getCached(key);
@@ -1450,7 +1459,7 @@ function openShowDetail(show) {
   else render(null, false);
 }
 
-function renderSeasons(container, datesByEp, epMap, imgMap) {
+function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp) {
   const full = !!epMap;
   const seasons = {}; // sNum -> { eNum -> title|null }
   const source = full ? Object.keys(epMap) : Object.keys(datesByEp);
@@ -1485,6 +1494,7 @@ function renderSeasons(container, datesByEp, epMap, imgMap) {
           el('div', { class: 'ep-num', text: numTxt }),
           el('div', { class: 'ep-title' + (c ? '' : ' unseen'), text: seasons[s][e] || `Episode ${e}` }),
           c ? el('div', { class: 'ep-dates' }, dates.map((d, i) => el('span', { text: (i === 0 ? '▶ ' : '↻ ') + fmtDateTime(d) }))) : null,
+          (reactsByEp && reactsByEp[`${s}|${e}`]) ? el('div', { class: 'ep-reactions', text: [...reactsByEp[`${s}|${e}`]].join(' · ') }) : null,
         ]),
         c ? el('span', { class: 'count-badge' + (c === 1 ? ' once' : ''), text: `×${c}` }) : el('span', { class: 'unwatched-dot' }),
       ]));
