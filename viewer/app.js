@@ -1095,7 +1095,7 @@ function renderOverview(root) {
     ['episodesWatched', 'Episodes watched', o.episodesWatched, '', null],
     ['moviesWatched', 'Movies watched', o.moviesWatched, '', null],
     ['seriesRuntime', 'Time in TV', fmtDuration(o.seriesRuntime), 'accent', 'series runtime'],
-    ['moviesRuntime', 'Time in film', fmtDuration(o.moviesRuntime), '', 'movie runtime'],
+    ['moviesRuntime', 'Time in film', fmtDuration(o.moviesRuntime), 'accent', 'movie runtime'],
     ['showsFollowed', 'Shows followed', fmtInt(o.showsFollowed), '', `${fmtInt(o.showsTracked)} tracked total`],
     ['moviesTracked', 'Movies tracked', fmtInt(o.moviesTracked), '', null],
     ['reactionsLogged', 'Reactions logged', fmtInt(o.reactionsLogged), '', null],
@@ -1223,7 +1223,10 @@ function listView(root, cfg) {
 
   const saved = (cfg.stateKey && STATE.listState[cfg.stateKey]) || {};
   const filterDefault = cfg.filter ? cfg.filter.default : null;
-  const state = { q: saved.q || '', sort: saved.sort || cfg.sorts[0].id, filterId: saved.filterId || filterDefault, page: saved.page || 0, pageSize: cfg.pageSize || 30 };
+  // Fall back to the default if a saved sort/filter id is no longer valid.
+  const validSort = cfg.sorts.some(s => s.id === saved.sort) ? saved.sort : cfg.sorts[0].id;
+  const validFilter = (cfg.filter && cfg.filter.options.some(o => o.id === saved.filterId)) ? saved.filterId : filterDefault;
+  const state = { q: saved.q || '', sort: validSort, filterId: validFilter, page: saved.page || 0, pageSize: cfg.pageSize || 30 };
   const persist = () => { if (cfg.stateKey) STATE.listState[cfg.stateKey] = { q: state.q, sort: state.sort, filterId: state.filterId, page: state.page }; };
 
   const doExport = (fmt) => {
@@ -1337,10 +1340,10 @@ function renderShows(root) {
       { id: 'rated', label: 'Rated', test: s => !!s.rating },
     ] },
     sorts: [
-      { id: 'watched', label: 'Most episodes watched', fn: (a, b) => b.epWatched - a.epWatched },
       { id: 'recent', label: 'Recently watched', fn: (a, b) => (b.lastWatched?.getTime() || 0) - (a.lastWatched?.getTime() || 0) },
       { id: 'followed', label: 'Recently followed', fn: (a, b) => (b.followedAt?.getTime() || 0) - (a.followedAt?.getTime() || 0) },
       { id: 'rating', label: 'Highest rated', fn: (a, b) => (b.rating || 0) - (a.rating || 0) },
+      { id: 'watched', label: 'Most episodes watched', fn: (a, b) => b.epWatched - a.epWatched },
       { id: 'az', label: 'A → Z', fn: (a, b) => a.title.localeCompare(b.title) },
     ],
     renderItem: (s) => {
@@ -1754,6 +1757,7 @@ function renderReactions(root) {
    =================================================================== */
 function renderLists(root) {
   const lists = STATE.model.lists;
+  const showSlugs = new Set(STATE.model.shows.map(s => slugify(s.title)));   // which chips can open a detail
   viewHead(root, 'Lists', lists.length ? `${lists.length} lists` : '');
   if (!lists.length) { root.append(el('div', { class: 'empty', text: 'No lists found.' })); return; }
 
@@ -1774,9 +1778,13 @@ function renderLists(root) {
     const chips = el('div', { class: 'list-items' });
     for (const it of l.items) {
       const label = it.title ? (it.type === 'movie' ? movieTitle(it.title) : it.title) : `${it.type || 'item'} ${it.id || it.uuid || '?'}`;
-      chips.append(el('span', { class: 'list-item-chip' + (it.title ? '' : ' unknown') }, [
+      const slug = it.type === 'series' && it.title ? slugify(it.title) : null;
+      const clickable = slug && showSlugs.has(slug);
+      const chip = el('span', { class: 'list-item-chip' + (it.title ? '' : ' unknown') + (clickable ? ' clickable' : '') }, [
         el('i', { class: it.type === 'movie' ? 'ph ph-film-slate' : 'ph ph-television' }), ' ' + label,
-      ]));
+      ]);
+      if (clickable) chip.addEventListener('click', () => navigate({ view: 'shows', detail: slug }));
+      chips.append(chip);
     }
     det.append(chips);
     root.append(det);

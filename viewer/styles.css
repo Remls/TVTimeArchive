@@ -319,6 +319,8 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .list-items { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 14px 14px; }
 .list-item-chip { background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: .8rem; overflow-wrap: anywhere; }
 .list-item-chip.unknown { color: var(--text-faint); }
+.list-item-chip.clickable { cursor: pointer; }
+.list-item-chip.clickable:hover { border-color: var(--accent); color: var(--text); }
 
 /* key-value profile grid */
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
