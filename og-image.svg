@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200">
+  <defs>
+    <radialGradient id="glow" cx="80%" cy="26%" r="55%">
+      <stop offset="0%" stop-color="#ff6a4d" stop-opacity="0.26"/>
+      <stop offset="60%" stop-color="#ff6a4d" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="1200" fill="#15110e"/>
+  <rect width="1200" height="1200" fill="url(#glow)"/>
+
+  <!-- design lives in the centre 630-tall band (y 285..915) -->
+  <circle cx="102" cy="527" r="34" fill="#ff6a4d"/>
+  <circle cx="102" cy="527" r="34" fill="none" stroke="#ff6a4d" stroke-opacity="0.20" stroke-width="18"/>
+
+  <text x="162" y="560" font-family="Helvetica, Arial, sans-serif" font-size="112" font-weight="800" fill="#f3ede4" letter-spacing="-3">TV Time Archive</text>
+  <text x="166" y="640" font-family="Helvetica, Arial, sans-serif" font-size="34" font-weight="500" fill="#a89e92">Browse your TV Time data export locally in your browser.</text>
+</svg>

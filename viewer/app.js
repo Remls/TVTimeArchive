@@ -1,0 +1,1884 @@
+/* ===================================================================
+   TV Time Archive Viewer
+   Fully client-side. Reads the GDPR .zip, parses the relevant CSVs,
+   and builds browsable views of movie & TV data.
+
+   Data is intentionally drawn from MANY source files (not one). See
+   SOURCES below and buildModel() for exactly which file feeds what.
+   =================================================================== */
+
+'use strict';
+
+/* -------------------------------------------------------------------
+   Small utilities
+   ------------------------------------------------------------------- */
+const $  = (sel, el = document) => el.querySelector(sel);
+const el = (tag, props = {}, kids = []) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') n.className = v;
+    else if (k === 'html') n.innerHTML = v;
+    else if (k === 'text') n.textContent = v;
+    else if (k.startsWith('on') && typeof v === 'function') n.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined && v !== false) n.setAttribute(k, v);
+  }
+  for (const c of [].concat(kids)) if (c != null) n.append(c.nodeType ? c : document.createTextNode(c));
+  return n;
+};
+
+const norm = (s) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+const toNum = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+const nonEmpty = (v) => v !== undefined && v !== null && String(v).trim() !== '';
+
+function parseDate(s) {
+  if (!s) return null;
+  // "2024-04-14 19:26:37"  or ISO
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+  const m2 = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m2) return new Date(+m2[1], +m2[2] - 1, +m2[3]);
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
+}
+const fmtDate = (d) => d ? d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+const fmtDateTime = (d) => d ? d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+const fmtInt = (n) => (n || 0).toLocaleString();
+
+function fmtDuration(seconds) {
+  seconds = Math.round(toNum(seconds));
+  if (!seconds) return '0m';
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function download(filename, text, mime = 'text/plain') {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = el('a', { href: url, download: filename });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function toCSV(rows) {
+  if (!rows.length) return '';
+  const cols = Object.keys(rows[0]);
+  const esc = (v) => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  return [cols.join(','), ...rows.map(r => cols.map(c => esc(r[c])).join(','))].join('\n');
+}
+
+/* -------------------------------------------------------------------
+   Reaction id → label decoding.
+   TV Time's finish-episode "HOW DID YOU FEEL?" set maps to ids 28–39 in the
+   current taxonomy, in on-screen display order. Verified against
+   The Dangers in My Heart S2E10 (ids 32/33/37 = Touched/Amused/Thrilled) and
+   S2E13 (all twelve feelings selected → ids 28–39).
+   Older-era ids (1–8, 18–20) and the dominant "3" (the "WOW" 5★ rating) are
+   left undecoded pending confirmation — shown as "#id".
+   ------------------------------------------------------------------- */
+const FEELING_LABELS = {
+  // ✔ = confirmed in-app by the user; others inferred from display order (all confirmed
+  // ones matched that order, so confidence in the rest is high).
+  28: ['😵', 'Shocked'],    29: ['😤', 'Frustrated'], 30: ['😭', 'Sad'],        31: ['🤔', 'Reflective'], // 28✔ 30✔
+  32: ['🥺', 'Touched'],    33: ['😆', 'Amused'],     34: ['😱', 'Scared'],     35: ['😑', 'Bored'],      // 32✔ 33✔
+  36: ['😌', 'Understood'], 37: ['🤩', 'Thrilled'],   38: ['🙃', 'Confused'],   39: ['😬', 'Tense'],      // 37✔ 38✔
+};
+// Star-rating ids confirmed in-app: 3 and 19 both = WOW (5★). WOW is encoded with
+// different ids across app versions; lower star levels remain unmapped.
+const STAR_LABELS = { 3: '★★★★★ WOW', 19: '★★★★★ WOW' };
+function reactionChipText(id, source = '') {
+  if (id == null) return null;
+  const f = FEELING_LABELS[id];
+  if (f) return `${f[0]} ${f[1]}`;
+  // Star ids only mean WOW inside the rating files; the same id can be a legacy
+  // feeling in episode_emotion, so scope the star label to rating sources.
+  if (/^ratings/.test(source) && STAR_LABELS[id]) return STAR_LABELS[id];
+  return `reaction #${id}`;
+}
+
+/* -------------------------------------------------------------------
+   Local persistence of the loaded archive via IndexedDB (never uploaded).
+   Stores the original .zip blob so it can be re-parsed on the next visit.
+   ------------------------------------------------------------------- */
+const IDB = {
+  DB: 'tvt-archive', STORE: 'files', KEY: 'archive',
+  _open() {
+    return new Promise((res, rej) => {
+      const req = indexedDB.open(this.DB, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(this.STORE);
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+  },
+  async put(blob, name) {
+    try {
+      const db = await this._open();
+      await new Promise((res, rej) => { const tx = db.transaction(this.STORE, 'readwrite'); tx.objectStore(this.STORE).put({ blob, name }, this.KEY); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    } catch (e) { console.warn('IDB put failed', e); }
+  },
+  async get() {
+    try {
+      const db = await this._open();
+      return await new Promise((res, rej) => { const tx = db.transaction(this.STORE, 'readonly'); const r = tx.objectStore(this.STORE).get(this.KEY); r.onsuccess = () => res(r.result || null); r.onerror = () => rej(r.error); });
+    } catch { return null; }
+  },
+  async clear() {
+    try {
+      const db = await this._open();
+      await new Promise((res) => { const tx = db.transaction(this.STORE, 'readwrite'); tx.objectStore(this.STORE).delete(this.KEY); tx.oncomplete = res; tx.onerror = res; });
+    } catch {}
+  },
+};
+
+/* -------------------------------------------------------------------
+   Global loading indicator — the top bar animates while any async
+   work (currently TVmaze fetches) is in flight.
+   ------------------------------------------------------------------- */
+const Progress = {
+  total: 0, done: 0,
+  refs() {
+    if (!this._bar) {
+      this._bar = document.getElementById('loadbar');
+      this._fill = this._bar && this._bar.querySelector('.loadbar-fill');
+      this._pill = document.getElementById('loadpill');
+    }
+  },
+  start() { this.total++; this.sync(); },
+  finish() { this.done++; this.sync(); },
+  sync() {
+    this.refs();
+    const active = this.done < this.total;
+    if (this._bar) this._bar.classList.toggle('active', active);
+    if (this._fill) this._fill.style.width = (this.total ? Math.round(this.done / this.total * 100) : 0) + '%';
+    if (this._pill) {
+      this._pill.hidden = !active;
+      if (active) this._pill.textContent = `Loading ${this.done} of ${this.total}…`;
+    }
+    if (!active) { this.total = 0; this.done = 0; if (this._fill) requestAnimationFrame(() => { this._fill.style.width = '0%'; }); }
+  },
+};
+
+/* -------------------------------------------------------------------
+   TVmaze episode-title enrichment.
+   Keyless, CORS-enabled public API. Opt-in (it sends a show id/name to
+   TVmaze). Resolves a show by its TheTVDB id (falling back to a name
+   search), fetches its episode list once, and caches the season/episode →
+   title map in localStorage so repeat views are instant and offline.
+   ------------------------------------------------------------------- */
+const Enrichment = {
+  enabled: false,
+  mem: new Map(),        // key -> { e:{"s|e":name}, n:showName, f:failed }
+  inflight: new Map(),   // key -> Promise
+  POOL: 4,
+
+  keyFor(seriesId, title) { return seriesId ? 't' + seriesId : 'n:' + norm(title); },
+  lsKey(key) { return 'tvt.mz.' + key; },
+
+  getCached(key) {
+    if (this.mem.has(key)) return this.mem.get(key);
+    try { const raw = localStorage.getItem(this.lsKey(key)); if (raw) { const v = JSON.parse(raw); this.mem.set(key, v); return v; } } catch {}
+    return null;
+  },
+  store(key, val) {
+    this.mem.set(key, val);
+    try { localStorage.setItem(this.lsKey(key), JSON.stringify(val)); } catch {}
+  },
+
+  seriesIdByName: {},   // norm(title) -> TheTVDB id, so name-only views can resolve the cache
+  resolveKey(title, seriesId) {
+    const sid = seriesId || this.seriesIdByName[norm(title)] || '';
+    return this.keyFor(sid, title);
+  },
+  epInfo(title, seriesId, season, episode) {
+    if (!this.enabled) return null;
+    const v = this.getCached(this.resolveKey(title, seriesId));
+    if (!v) return null;
+    const k = `${season}|${episode}`;
+    return { name: (v.e && v.e[k]) || null, image: (v.i && v.i[k]) || null };
+  },
+  titleFor(ev) { const i = this.epInfo(ev.title, ev.seriesId, ev.season, ev.episode); return i && i.name; },
+  imageFor(ev) { const i = this.epInfo(ev.title, ev.seriesId, ev.season, ev.episode); return i && i.image; },
+  posterFor(title, seriesId) {
+    if (!this.enabled) return null;
+    const v = this.getCached(this.resolveKey(title, seriesId));
+    return (v && v.img) || null;
+  },
+
+  // Does a cache entry already satisfy this need? (full needs episodes, light needs only the show/poster)
+  needsFetch(key, full) {
+    const v = this.getCached(key);
+    if (!v) return true;
+    if (v.f) return false;          // known-failed: don't retry
+    if (full && !v.full) return true;  // have light (poster only), need episodes -> upgrade
+    return false;
+  },
+
+  // full=false -> resolve the show only (poster). full=true -> also fetch the episode list.
+  async fetchOne(seriesId, title, full) {
+    const key = this.keyFor(seriesId, title);
+    let show = null;
+    if (seriesId) {
+      try { const r = await fetch(`https://api.tvmaze.com/lookup/shows?thetvdb=${encodeURIComponent(seriesId)}`); if (r.ok) show = await r.json(); } catch {}
+    }
+    if (!show && title) {
+      try { const r = await fetch(`https://api.tvmaze.com/singlesearch/shows?q=${encodeURIComponent(title)}`); if (r.ok) show = await r.json(); } catch {}
+    }
+    if (!show || !show.id) { this.store(key, { e: {}, f: true, full: true }); return; }
+    const img = show.image ? (show.image.medium || show.image.original || null) : null;  // poster comes free
+    if (!full) { this.store(key, { img, n: show.name }); return; }   // light: poster only
+    let eps = [];
+    try { const r = await fetch(`https://api.tvmaze.com/shows/${show.id}/episodes`); if (r.ok) eps = await r.json(); } catch {}
+    const e = {}, i = {};   // titles + episode thumbnails, keyed by "season|number"
+    for (const ep of eps) {
+      const kk = `${ep.season}|${ep.number}`;
+      e[kk] = ep.name;
+      if (ep.image) i[kk] = ep.image.medium || ep.image.original || null;
+    }
+    this.store(key, { e, i, img, n: show.name, full: true });
+  },
+
+  forget(key) { this.mem.delete(key); this.inflight.delete(key); try { localStorage.removeItem(this.lsKey(key)); } catch {} },
+
+  // Ensure a batch of {seriesId,title} is fetched at the requested level. Resolves to number newly fetched.
+  async ensure(items, full = false) {
+    const need = [];
+    const seen = new Set();
+    for (const it of items) {
+      const key = this.keyFor(it.seriesId, it.title);
+      if (seen.has(key) || !this.needsFetch(key, full)) continue;
+      seen.add(key); need.push(it);
+    }
+    if (!need.length) return 0;
+    let i = 0;
+    const worker = async () => {
+      while (i < need.length) {
+        const it = need[i++];
+        const key = this.keyFor(it.seriesId, it.title);
+        if (!this.needsFetch(key, full)) continue;
+        let p = this.inflight.get(key);
+        if (!p) {
+          Progress.start();
+          p = this.fetchOne(it.seriesId, it.title, full).finally(() => { this.inflight.delete(key); Progress.finish(); });
+          this.inflight.set(key, p);
+        }
+        await p;
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(this.POOL, need.length) }, worker));
+    return need.length;
+  },
+
+  // Remove every cached TVmaze episode map (localStorage + memory). Returns count cleared.
+  clearCache() {
+    let n = 0;
+    try {
+      for (const k of Object.keys(localStorage)) if (k.startsWith('tvt.mz')) { localStorage.removeItem(k); n++; }
+    } catch {}
+    this.mem.clear();
+    this.inflight.clear();
+    return n;
+  },
+};
+
+/* -------------------------------------------------------------------
+   Movie metadata enrichment via Wikidata (keyless, CORS-enabled).
+   Resolves a (often localized) movie_name to an English title. Only
+   accepts a match that is instance-of a film type AND carries an
+   external id (TMDB/IMDb) — that "id match" guard cuts false hits.
+   Wikidata has no film posters, so this is title-only. Separate opt-in
+   setting and cache from the TVmaze show enrichment.
+   ------------------------------------------------------------------- */
+const FILM_P31 = new Set(['Q11424', 'Q24856', 'Q202866', 'Q29168811', 'Q506240', 'Q24862', 'Q20650540', 'Q24869', 'Q130232', 'Q17517379', 'Q842256', 'Q59755569', 'Q18011172', 'Q353834', 'Q157443', 'Q1054574']);
+const WD = 'https://www.wikidata.org/w/api.php?format=json&origin=*&';
+
+const MovieMeta = {
+  enabled: false,
+  mem: new Map(),
+  inflight: new Map(),
+  POOL: 3,
+
+  keyFor(title) { return norm(title); },
+  lsKey(key) { return 'tvt.wd.' + key; },
+  getCached(key) {
+    if (this.mem.has(key)) return this.mem.get(key);
+    try { const raw = localStorage.getItem(this.lsKey(key)); if (raw) { const v = JSON.parse(raw); this.mem.set(key, v); return v; } } catch {}
+    return null;
+  },
+  store(key, val) { this.mem.set(key, val); try { localStorage.setItem(this.lsKey(key), JSON.stringify(val)); } catch {} },
+
+  // English title for a movie, or null if disabled / unresolved.
+  titleFor(title) {
+    if (!this.enabled) return null;
+    const v = this.getCached(this.keyFor(title));
+    return v && !v.f ? (v.en || null) : null;
+  },
+
+  async wdJson(params) {
+    for (let a = 0; a < 3; a++) {
+      try {
+        const r = await fetch(WD + params);
+        if (r.status === 429) { await new Promise(res => setTimeout(res, 800 * (a + 1))); continue; }
+        if (r.ok) return await r.json();
+        return null;
+      } catch { return null; }
+    }
+    return null;
+  },
+  async fetchOne(title) {
+    const key = this.keyFor(title);
+    // CirrusSearch: language-agnostic full-text over labels/aliases in every language.
+    const s = await this.wdJson('action=query&list=search&srnamespace=0&srlimit=6&srsearch=' + encodeURIComponent(title));
+    const hits = ((s && s.query && s.query.search) || []).map(h => h.title);
+    if (!hits.length) { this.store(key, { f: true }); return; }
+    const g = await this.wdJson('action=wbgetentities&props=labels|claims&ids=' + hits.join('|'));
+    const ents = (g && g.entities) || {};
+    const val = (cs) => cs && cs[0] && cs[0].mainsnak && cs[0].mainsnak.datavalue && cs[0].mainsnak.datavalue.value;
+    let out = null;
+    for (const qid of hits) {  // relevance order; take first confident film match
+      const claims = (ents[qid] || {}).claims || {};
+      const p31 = (claims.P31 || []).map(x => x.mainsnak && x.mainsnak.datavalue && x.mainsnak.datavalue.value && x.mainsnak.datavalue.value.id);
+      if (!p31.some(p => FILM_P31.has(p))) continue;
+      const tmdb = val(claims.P4947) || null, imdb = val(claims.P345) || null;
+      const en = (ents[qid].labels && ents[qid].labels.en && ents[qid].labels.en.value) || null;
+      if (en && (tmdb || imdb)) { out = { en, tmdb, imdb }; break; }   // film + external id = confident
+    }
+    this.store(key, out || { f: true });
+  },
+
+  async ensure(titles) {
+    const need = [], seen = new Set();
+    for (const t of titles) {
+      const key = this.keyFor(t);
+      if (!t || seen.has(key) || this.getCached(key)) continue;
+      seen.add(key); need.push(t);
+    }
+    if (!need.length) return 0;
+    let i = 0;
+    const worker = async () => {
+      while (i < need.length) {
+        const t = need[i++]; const key = this.keyFor(t);
+        if (this.getCached(key)) continue;
+        let p = this.inflight.get(key);
+        if (!p) { Progress.start(); p = this.fetchOne(t).finally(() => { this.inflight.delete(key); Progress.finish(); }); this.inflight.set(key, p); }
+        await p;
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(this.POOL, need.length) }, worker));
+    return need.length;
+  },
+
+  clearCache() {
+    let n = 0;
+    try { for (const k of Object.keys(localStorage)) if (k.startsWith('tvt.wd.')) { localStorage.removeItem(k); n++; } } catch {}
+    this.mem.clear(); this.inflight.clear();
+    return n;
+  },
+};
+
+// Display title for a movie: English (Wikidata) if resolved, else the stored name.
+const movieTitle = (title) => MovieMeta.titleFor(title) || title;
+
+/* -------------------------------------------------------------------
+   Global state
+   ------------------------------------------------------------------- */
+const STATE = {
+  tables: {},   // filename -> { fields:[], rows:[] }
+  model: null,  // derived, curated datasets
+  view: 'overview',
+  listState: {},      // stateKey -> { q, sort, page } preserved across navigation
+  pendingScroll: null,// { key, y } — restore scroll once when a list re-renders
+};
+
+/* -------------------------------------------------------------------
+   Load & parse the zip
+   ------------------------------------------------------------------- */
+async function loadArchive(file, opts = {}) {
+  showLoading(opts.restoring ? 'Restoring your archive…' : 'Reading archive…');
+  let zip;
+  try {
+    zip = await JSZip.loadAsync(file);
+  } catch (e) {
+    return fail('That doesn’t look like a valid .zip archive.');
+  }
+
+  const csvEntries = Object.values(zip.files).filter(f => !f.dir && /\.csv$/i.test(f.name));
+  if (!csvEntries.length) return fail('No CSV files found inside the archive.');
+
+  showLoading(`Parsing ${csvEntries.length} CSV files…`);
+  const tables = {};
+  for (const entry of csvEntries) {
+    const text = await entry.async('string');
+    const base = entry.name.split('/').pop();          // strip any folder prefix
+    const parsed = Papa.parse(text, { header: true, skipEmptyLines: 'greedy', dynamicTyping: false });
+    tables[base] = { fields: parsed.meta.fields || [], rows: parsed.data || [] };
+  }
+  STATE.tables = tables;
+
+  try {
+    STATE.model = buildModel(tables);
+  } catch (e) {
+    console.error(e);
+    return fail('Failed while interpreting the data: ' + e.message);
+  }
+
+  // Index show titles -> TheTVDB id so name-only views (Reactions) can hit the enrichment cache.
+  Enrichment.seriesIdByName = {};
+  for (const s of STATE.model.shows) if (s.id) Enrichment.seriesIdByName[norm(s.title)] = s.id;
+
+  // Persist the raw archive locally (IndexedDB) so it reloads next visit. Never uploaded.
+  if (!opts.restoring) IDB.put(file, file.name || 'archive.zip');
+
+  $('#landing').hidden = true;
+  $('#app').hidden = false;
+  buildChrome();
+  renderView('overview');
+  return true;
+}
+
+function showLoading(msg) {
+  $('#landingError').hidden = true;
+  $('#loadingBar').hidden = false;
+  $('#loadingText').textContent = msg;
+}
+function fail(msg) {
+  $('#loadingBar').hidden = true;
+  showChooser();   // reveal the dropzone so the user can pick a file
+  const e = $('#landingError');
+  e.textContent = msg; e.hidden = false;
+  return false;
+}
+function showChooser() {
+  $('#chooser').hidden = false;
+  $('#loadingBar').hidden = true;
+}
+
+/* helper to read a table safely */
+const T = (name) => (STATE.tables[name] || { fields: [], rows: [] }).rows;
+const has = (name) => !!STATE.tables[name];
+
+/* ===================================================================
+   MODEL BUILDING — the heart of the app.
+   Each section names the source CSV(s) it consumes.
+   =================================================================== */
+function buildModel(tables) {
+  const m = {};
+
+  /* ---- Profile: user.csv + user_personal_data.csv + user_tv_show_data.csv ---- */
+  m.profile = buildProfile();
+
+  /* ---- Show star ratings: tv_show_rate.csv (genuine 1–5 scale) ---- */
+  m.showRatings = buildShowRatings();
+
+  /* ---- Reactions: the ratings-* and emotions-* vote files + episode_emotion.csv.
+     NOTE: TV Time's "vote_key" encodes a reaction id (its finish-episode sticker),
+     not a numeric star score — the dominant id "3" matches the emotion tables and
+     ids run up to 33, so these are reactions, not ratings. See buildReactions(). ---- */
+  m.reactions = buildReactions();
+
+  /* ---- Per-show reaction totals: tv_show_user_emotion_count.csv ---- */
+  m.emotionPerShow = buildEmotionPerShow();
+
+  /* ---- History: v2 watch/rewatch episodes + movie watches + rewatched_episode ---- */
+  m.history = buildHistory();
+
+  /* ---- Shows: followed_tv_show + v2 user-series + tv_show_rate + reactions + addiction + seen ---- */
+  m.shows = buildShows(m.showRatings, m.reactions, m.emotionPerShow, m.history);
+
+  /* ---- Movies: tracking-prod-records(entity=movie) + reaction votes ---- */
+  m.movies = buildMovies(m.reactions, m.history);
+
+  /* ---- Lists: lists-prod-lists.csv (collection + per-list items, titles resolved) ---- */
+  m.lists = buildLists();
+
+  /* ---- Stats: stats-prod-cache.csv (marathons, per-month charts) ---- */
+  m.stats = buildStats();
+
+  /* ---- Overview headline stats: tracking-stats row + counts across sources ---- */
+  m.overview = buildOverview(m);
+
+  return m;
+}
+
+/* ---------------- Profile ---------------- */
+function buildProfile() {
+  const u = T('user.csv')[0] || {};
+  const personal = {};
+  for (const r of T('user_personal_data.csv')) if (r.name) personal[r.name] = r.value;
+  const tvd = {};
+  for (const r of T('user_tv_show_data.csv')) if (r.name) tvd[r.name] = r.value;
+
+  // user.csv `name` is often just the numeric user id — treat that as "no real name".
+  const rawName = (u.name || '').trim();
+  const realName = (rawName && rawName !== u.id && !/^\d+$/.test(rawName)) ? rawName : '';
+  const username = ((T('routing-prod-users.csv')[0] || {}).username
+    || (T('auth-prod-login.csv').find(r => r.username) || {}).username || '').trim();
+  // Greeting: real name, else username (no @), else nothing.
+  const displayName = realName || username;
+
+  return {
+    name: realName || '—',
+    username,
+    displayName,
+    email: u.mail || personal.email || '—',
+    language: u.language || '—',
+    timezone: u.timezone || '—',
+    createdAt: parseDate(u.created_at),
+    lastOpened: parseDate(u.last_opened),
+    daysActive: u.nb_days_active,
+    weeksActive: u.nb_weeks_active,
+    monthsActive: u.nb_months_active,
+    raw: u, personal, tvShowData: tvd,
+  };
+}
+
+/* ---------------- Show star ratings ----------------
+   tv_show_rate.csv — the only genuine numeric rating (1–5 scale). */
+function buildShowRatings() {
+  const list = [];
+  for (const r of T('tv_show_rate.csv')) {
+    if (!r.tv_show_name) continue;
+    list.push({ title: r.tv_show_name, score: toNum(r.rating), date: parseDate(r.created_at) });
+  }
+  const byTitle = {};
+  for (const r of list) byTitle[norm(r.title)] = r.score;
+  list.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+  return { list, byTitle };
+}
+
+/* ---------------- Reactions ----------------
+   The finish-episode / finish-movie "reaction" the user left, from the vote files.
+   vote_key format is "<entityId>-<userId>-<reactionId>"; the segment AFTER the
+   user id is the reaction id (small clustered ids matching the emotion tables —
+   NOT a star score). Also folds in per-episode reactions from episode_emotion.csv.
+   Sources: ratings-3/prod/live/v2 votes, emotions-3/live/v2 votes, episode_emotion. */
+function buildReactions() {
+  const reactionAfterUser = (key, uid) => {
+    const p = String(key || '').split('-');
+    const i = p.lastIndexOf(String(uid));
+    const seg = (i >= 0 && i + 1 < p.length) ? p[i + 1] : p[p.length - 1];
+    return /^\d+$/.test(seg) ? Number(seg) : null;
+  };
+  const list = [];
+  const voteFiles = [
+    'ratings-3-prod-episode_votes.csv', 'ratings-prod-episode_votes.csv',
+    'ratings-live-votes.csv', 'ratings-v2-prod-votes.csv',
+    'emotions-3-prod-episode_votes.csv', 'emotions-v2-prod-votes.csv',
+  ];
+  for (const f of voteFiles) {
+    for (const r of T(f)) {
+      const title = r.series_name || r.movie_name;
+      if (!title) continue;
+      list.push({
+        kind: r.movie_name ? 'movie' : 'episode', title,
+        season: r.season_number || '', episode: r.episode_number || '',
+        reactionId: reactionAfterUser(r.vote_key, r.user_id), date: null, source: f.replace('.csv', ''),
+      });
+    }
+  }
+  // movie reaction votes (emotions-live)
+  for (const r of T('emotions-live-votes.csv')) {
+    if (!r.movie_name) continue;
+    list.push({ kind: 'movie', title: r.movie_name, season: '', episode: '', reactionId: reactionAfterUser(r.vote_key, r.user_id), date: null, source: 'emotions-live' });
+  }
+  // per-episode reactions recorded with timestamps
+  for (const r of T('episode_emotion.csv')) {
+    if (!r.tv_show_name) continue;
+    list.push({ kind: 'episode', title: r.tv_show_name, season: r.episode_season_number || '', episode: r.episode_number || '', reactionId: toNum(r.emotion_id) || null, date: parseDate(r.created_at), source: 'episode_emotion' });
+  }
+
+  const countByTitle = {};
+  for (const r of list) { const k = norm(r.title); countByTitle[k] = (countByTitle[k] || 0) + 1; }
+  return { list, countByTitle };
+}
+
+/* ---------------- Per-show reaction totals ----------------
+   tv_show_user_emotion_count.csv — TV Time's own per-show reaction tally. */
+function buildEmotionPerShow() {
+  const perShow = {};
+  for (const r of T('tv_show_user_emotion_count.csv')) {
+    if (!r.tv_show_name) continue;
+    perShow[norm(r.tv_show_name)] = (perShow[norm(r.tv_show_name)] || 0) + toNum(r.count);
+  }
+  return perShow;
+}
+
+/* ---------------- History (watch timeline) ----------------
+   Episodes: tracking-prod-records-v2.csv  (key starts watch-episode / rewatch-episode)
+   Movies:   tracking-prod-records.csv     (entity_type == movie, type == watch/rewatch)
+   Extra rewatches: rewatched_episode.csv */
+function buildHistory() {
+  const events = [];
+
+  for (const r of T('tracking-prod-records-v2.csv')) {
+    const key = r.key || '';
+    if (key.startsWith('watch-episode') || key.startsWith('rewatch-episode')) {
+      const d = parseDate(r.created_at);
+      events.push({
+        date: d, ts: d ? d.getTime() : 0,
+        type: 'episode',
+        rewatch: key.startsWith('rewatch-episode'),
+        title: r.series_name || '(unknown series)',
+        seriesId: r.s_id || '',
+        season: r.season_number, episode: r.episode_number,
+        runtime: toNum(r.runtime),
+      });
+    }
+  }
+
+  for (const r of T('tracking-prod-records.csv')) {
+    if (r.entity_type !== 'movie') continue;
+    if (r.type !== 'watch' && r.type !== 'rewatch') continue;
+    const d = parseDate(r.watch_date) || parseDate(r.created_at);
+    events.push({
+      date: d, ts: d ? d.getTime() : 0,
+      type: 'movie',
+      rewatch: r.type === 'rewatch',
+      title: r.movie_name || '(unknown movie)',
+      season: '', episode: '',
+      runtime: toNum(r.runtime),
+    });
+  }
+
+  events.sort((a, b) => b.ts - a.ts);
+  return events;
+}
+
+/* ---------------- Shows ----------------
+   Merge, keyed by normalized title:
+     followed_tv_show.csv        -> follow status, folder, followed date
+     tracking-prod-records-v2    -> per-series watch/rewatch counts, following flag
+     tv_show_rate / ratings      -> rating
+     tv_show_user_emotion_count  -> emotion count
+     show_addiction_score.csv    -> engagement score
+     seen_episode_source.csv     -> seen-episode count
+   Watched-episode counts are also cross-checked against the history timeline. */
+function buildShows(showRatings, reactions, emotionPerShow, history) {
+  const shows = {};
+  const get = (title) => {
+    const k = norm(title);
+    return (shows[k] ||= { title, id: null, status: null, followedAt: null, epWatched: 0, rewatches: 0, rating: null, emotionCount: 0, addiction: 0, seenCount: 0, lastWatched: null, sources: new Set() });
+  };
+
+  // followed_tv_show.csv
+  for (const r of T('followed_tv_show.csv')) {
+    if (!r.tv_show_name) continue;
+    const s = get(r.tv_show_name);
+    s.id ||= r.tv_show_id;
+    s.followedAt = parseDate(r.created_at);
+    s.diffusion = r.diffusion;
+    const archived = r.archived === '1' || r.archived === 'true';
+    const active = r.active === '1' || r.active === 'true';
+    s.status = archived ? 'archived' : (active ? 'following' : 'stopped');
+    s.sources.add('followed_tv_show');
+  }
+
+  // tracking-prod-records-v2 user-series aggregates
+  for (const r of T('tracking-prod-records-v2.csv')) {
+    if (!(r.key || '').startsWith('user-series')) continue;
+    if (!r.series_name) continue;
+    const s = get(r.series_name);
+    s.id ||= r.s_id;
+    s.epWatched = Math.max(s.epWatched, toNum(r.ep_watch_count));
+    s.rewatches += toNum(r.rewatch_count);
+    if (r.is_followed === 'true' && !s.status) s.status = 'following';
+    if (r.is_archived === 'true') s.status = 'archived';
+    if (r.is_for_later === 'true') s.forLater = true;
+    if (nonEmpty(r.followed_at) && !s.followedAt) s.followedAt = parseDate(r.followed_at);
+    s.sources.add('tracking-v2');
+  }
+
+  // genuine show star ratings (tv_show_rate)
+  for (const [k, score] of Object.entries(showRatings.byTitle)) if (shows[k]) shows[k].rating = score;
+
+  // per-show reaction totals (prefer TV Time's own tally, else count from reactions list)
+  for (const [k, count] of Object.entries(emotionPerShow)) if (shows[k]) shows[k].emotionCount = count;
+  for (const [k, count] of Object.entries(reactions.countByTitle)) if (shows[k]) shows[k].emotionCount = Math.max(shows[k].emotionCount, count);
+
+  // addiction score
+  for (const r of T('show_addiction_score.csv')) {
+    if (!r.tv_show_name) continue;
+    const s = shows[norm(r.tv_show_name)];
+    if (s) s.addiction = Math.max(s.addiction, toNum(r.monthly_score), toNum(r.weekly_score));
+  }
+
+  // seen-episode counts
+  for (const r of T('seen_episode_source.csv')) {
+    if (!r.tv_show_name) continue;
+    const s = shows[norm(r.tv_show_name)];
+    if (s) s.seenCount++;
+  }
+
+  // last-watched from timeline + a watched-count fallback
+  const watchedByShow = {};
+  for (const ev of history) {
+    if (ev.type !== 'episode') continue;
+    const k = norm(ev.title);
+    watchedByShow[k] = (watchedByShow[k] || 0) + 1;
+    const s = shows[k];
+    if (s && ev.ts && (!s.lastWatched || ev.ts > s.lastWatched.getTime())) s.lastWatched = ev.date;
+  }
+  for (const [k, s] of Object.entries(shows)) {
+    if (!s.epWatched && watchedByShow[k]) s.epWatched = watchedByShow[k];
+    s.sources = [...s.sources];
+  }
+
+  return Object.values(shows).sort((a, b) => (b.epWatched - a.epWatched) || a.title.localeCompare(b.title));
+}
+
+/* ---------------- Movies ----------------
+   Source of truth: tracking-prod-records.csv (entity_type == movie).
+   A movie's rows are grouped by uuid: follow row + watch row(s) + rewatch_count row.
+   Reaction votes merged by normalized title (movies have no numeric star rating). */
+function buildMovies(reactions, history) {
+  const movies = {};
+  const get = (title, uuid) => {
+    const k = norm(title);
+    return (movies[k] ||= { title, uuid, watched: false, watchCount: 0, rewatches: 0, runtime: 0, followedAt: null, watchedAt: null, watchDates: [], status: null, reacted: false, sources: new Set() });
+  };
+
+  for (const r of T('tracking-prod-records.csv')) {
+    if (r.entity_type !== 'movie') continue;
+    const title = r.movie_name;
+    if (!title) continue;
+    const mv = get(title, r.uuid);
+    mv.sources.add('tracking');
+    if (nonEmpty(r.runtime)) mv.runtime = Math.max(mv.runtime, toNum(r.runtime));
+    if (r.type === 'follow')  { mv.followedAt = parseDate(r.created_at); mv.status ||= 'watchlist'; }
+    if (r.type === 'towatch') { mv.status = 'watchlist'; }
+    if (r.type === 'watch')   { mv.watched = true; mv.status = 'watched'; mv.watchCount++; const d = parseDate(r.watch_date) || parseDate(r.created_at); if (d) { mv.watchDates.push(d); if (!mv.watchedAt || d > mv.watchedAt) mv.watchedAt = d; } }
+    if (r.type === 'rewatch') { mv.watched = true; mv.rewatches++; const d = parseDate(r.watch_date) || parseDate(r.created_at); if (d) mv.watchDates.push(d); }
+    if (r.type === 'rewatch_count') { mv.rewatches = Math.max(mv.rewatches, toNum(r.rewatch_count)); }
+    if (nonEmpty(r.watch_count)) mv.watchCount = Math.max(mv.watchCount, toNum(r.watch_count));
+  }
+
+  // movie reaction votes — surface movies that only appear as a reaction, and flag the rest
+  const movieReactions = reactions.list.filter(r => r.kind === 'movie');
+  for (const r of movieReactions) {
+    const k = norm(r.title);
+    if (!movies[k]) movies[k] = { title: r.title, watched: true, watchCount: 0, rewatches: 0, runtime: 0, followedAt: null, watchedAt: null, watchDates: [], status: 'reacted', reacted: true, sources: new Set(['reactions']) };
+    else { movies[k].reacted = true; movies[k].sources.add('reactions'); }
+  }
+
+  for (const mv of Object.values(movies)) { mv.sources = [...mv.sources]; mv.watchDates.sort((a, b) => (a ? a.getTime() : 0) - (b ? b.getTime() : 0)); }
+  return Object.values(movies).sort((a, b) => {
+    const at = a.watchedAt ? a.watchedAt.getTime() : 0, bt = b.watchedAt ? b.watchedAt.getTime() : 0;
+    return bt - at || a.title.localeCompare(b.title);
+  });
+}
+
+/* ---------------- Lists ----------------
+   lists-prod-lists.csv is a joinable structure, not one blob:
+     - a `collection` row      -> list names + cover artwork (posters/fanart), keyed by s_key
+     - per-list rows (by s_key) -> membership in `objects` (each item: id/uuid + type)
+   We resolve every item id/uuid to a real title using id/uuid->name maps built
+   from the rest of the export, then join collection metadata to its items. */
+function buildLists() {
+  const listRows = T('lists-prod-lists.csv');
+  if (!listRows.length) return [];
+
+  // id/uuid -> title, gathered across the export
+  const id2name = {}, uuid2name = {};
+  const addId = (i, n) => { if (i && n && !id2name[i]) id2name[i] = n; };
+  const addUuid = (u, n) => { if (u && n && !uuid2name[u]) uuid2name[u] = n; };
+  for (const r of T('followed_tv_show.csv')) addId(r.tv_show_id, r.tv_show_name);
+  for (const r of T('show_seen_episode_latest.csv')) addId(r.tv_show_id, r.tv_show_name);
+  for (const r of T('tv_show_rate.csv')) addId(r.tv_show_id, r.tv_show_name);
+  for (const r of T('tracking-prod-records.csv')) {
+    if (r.series_id) addId(r.series_id, r.series_name);
+    if (r.series_uuid) addUuid(r.series_uuid, r.series_name);
+    if (r.entity_type === 'movie' && r.uuid) addUuid(r.uuid, r.movie_name);
+  }
+  for (const r of T('tracking-prod-records-v2.csv')) {
+    if (r.s_id) addId(r.s_id, r.series_name);
+    if (r.uuid && r.series_name) addUuid(r.uuid, r.series_name);
+  }
+
+  // parse a flat objects list: "[map[id:.. type:.. uuid:.. created_at:..] ...]"
+  const parseObjects = (s) => {
+    const items = [];
+    for (const b of (s.match(/map\[(.*?)\]/g) || [])) {
+      const inner = b.slice(4, -1);
+      const g = (k) => { const m = inner.match(new RegExp('(?:^| )' + k + ':(\\S+)')); return m ? m[1] : null; };
+      const id = g('id'), uuid = g('uuid'), type = g('type');
+      items.push({ id, uuid, type, title: (id && id2name[id]) || (uuid && uuid2name[uuid]) || null });
+    }
+    return items;
+  };
+  const itemsBySkey = {};
+  for (const r of listRows) if (r.type === 'list' && r.objects) itemsBySkey[r.s_key] = parseObjects(r.objects);
+
+  // split the collection blob into top-level map[...] blocks (they contain nested [ ] arrays)
+  const topMaps = (s) => {
+    const out = []; let i = 0;
+    while (i < s.length) {
+      const start = s.indexOf('map[', i);
+      if (start < 0) break;
+      let depth = 0, j = start + 3;
+      for (; j < s.length; j++) { if (s[j] === '[') depth++; else if (s[j] === ']') { if (--depth === 0) { j++; break; } } }
+      out.push(s.slice(start + 4, j - 1)); i = j;
+    }
+    return out;
+  };
+  const KEYS = 'order|posters|s_key|type|updated_at|user_id|description|fanart|is_public|created_at|name';
+  const meta = {};
+  const coll = listRows.find(r => r.s_key === 'collection');
+  if (coll && coll.lists) {
+    for (const b of topMaps(coll.lists)) {
+      const skey = (b.match(/s_key:(\S+)/) || [])[1];
+      if (!skey) continue;
+      const nameM = b.match(new RegExp('name:(.*?)(?=\\s+(?:' + KEYS + '):)')) || b.match(/name:(\S+)/);
+      const posters = ((b.match(/posters:\[([^\]]*)\]/) || [])[1] || '').split(/\s+/).filter(x => /^https?:/.test(x));
+      meta[skey] = { name: nameM ? nameM[1] : null, isPublic: /is_public:true/.test(b), cover: posters[0] || null };
+    }
+  }
+
+  const out = [], seen = new Set();
+  const push = (skey, m) => {
+    const items = itemsBySkey[skey] || [];
+    const kinds = new Set(items.map(i => i.type));
+    const fallback = skey === 'favorite-series' ? 'Favorite Shows' : skey === 'favorite-movies' ? 'Favorite Movies' : 'List';
+    out.push({
+      name: (m && m.name && m.name !== '<nil>') ? m.name : fallback,
+      isPublic: m ? m.isPublic : false,
+      cover: m ? m.cover : null,
+      kind: kinds.size === 1 ? [...kinds][0] : 'mixed',
+      items,
+    });
+    seen.add(skey);
+  };
+  for (const skey of Object.keys(meta)) if (itemsBySkey[skey]) push(skey, meta[skey]);
+  for (const skey of Object.keys(itemsBySkey)) if (!seen.has(skey)) push(skey, null);
+  return out;
+}
+
+/* ---------------- Stats ----------------
+   stats-prod-cache.csv holds Go-serialized `map[...]` blobs of precomputed stats:
+   biggest marathons, and episode/movie counts + hours per month. */
+function goMaps(s) {   // split "map[..] map[..]" into inner strings, depth-aware
+  const out = []; let i = 0;
+  while (i < s.length) {
+    const start = s.indexOf('map[', i); if (start < 0) break;
+    let depth = 0, j = start + 3;
+    for (; j < s.length; j++) { if (s[j] === '[') depth++; else if (s[j] === ']') { if (--depth === 0) { j++; break; } } }
+    out.push(s.slice(start + 4, j - 1)); i = j;
+  }
+  return out;
+}
+function goArray(blob, key) {   // content of "key:[ ... ]", depth-aware
+  const idx = blob.indexOf(key + ':['); if (idx < 0) return null;
+  let i = idx + key.length + 1, depth = 0; const start = i;
+  for (; i < blob.length; i++) { if (blob[i] === '[') depth++; else if (blob[i] === ']') { if (--depth === 0) return blob.slice(start + 1, i); } }
+  return null;
+}
+function buildStats() {
+  const cache = T('stats-prod-cache.csv');
+  const blob = (type) => (cache.find(r => r.type === type) || {}).stats || '';
+  const epW = blob('episode-watched'), mvW = blob('movie-watched');
+
+  const marathons = [];
+  const marr = goArray(epW, 'biggest-marathon');
+  if (marr) for (const b of goMaps(marr)) {
+    const x = (b.match(/x:(.*?)\s+y:/) || [])[1];
+    const y = b.match(/y:\[(\d+)\s+(\d+)\]/);
+    if (x && y) marathons.push({ show: x, episodes: +y[1], days: +y[2] });
+  }
+  const series = (source, key) => {
+    const arr = goArray(source, key), out = [];
+    if (arr) for (const b of goMaps(arr)) {
+      const x = (b.match(/x:(.*?)\s+y:/) || [])[1];
+      const y = (b.match(/y:(\d+)/) || [])[1];
+      if (x) out.push({ label: x, value: +y || 0 });
+    }
+    return out;
+  };
+  const epByMonth = series(epW, 'count-by-month');
+  return {
+    hasData: !!(marathons.length || epByMonth.length),
+    marathons,
+    epByMonth,
+    hoursByMonth: series(epW, 'duration-by-month'),
+    moviesByMonth: series(mvW, 'count-by-month'),
+  };
+}
+
+/* ---------------- Overview ----------------
+   Headline numbers primarily from the tracking-stats row (authoritative totals),
+   with everything else counted from the curated datasets above. */
+function buildOverview(m) {
+  const statsRow = T('tracking-prod-records-v2.csv').find(r => r.key === 'tracking-stats') || {};
+  const epFromStats = toNum(statsRow.ep_watch_count);
+  const movieFromStats = toNum(statsRow.movie_watch_count);
+
+  const episodeWatches = m.history.filter(e => e.type === 'episode').length;
+  const movieWatches   = m.history.filter(e => e.type === 'movie').length;
+
+  return {
+    episodesWatched: epFromStats || episodeWatches,
+    moviesWatched:   movieFromStats || movieWatches,
+    seriesRuntime:   toNum(statsRow.total_series_runtime),
+    moviesRuntime:   toNum(statsRow.total_movies_runtime),
+    showsFollowed:   toNum(statsRow.series_follow_count) || m.shows.filter(s => s.status === 'following').length,
+    showsTracked:    m.shows.length,
+    moviesTracked:   m.movies.length,
+    showRatings:     m.showRatings.list.length,
+    reactionsLogged: m.reactions.list.length,
+    timelineEvents:  m.history.length,
+    firstWatch:      m.history.length ? m.history[m.history.length - 1].date : null,
+    lastWatch:       m.history.length ? m.history[0].date : null,
+  };
+}
+
+/* ===================================================================
+   NAVIGATION / CHROME
+   =================================================================== */
+const VIEWS = [
+  { id: 'overview', label: 'Overview', icon: 'ph-house', render: renderOverview },
+  { id: 'stats',    label: 'Stats',    icon: 'ph-chart-line-up', render: renderStats },
+  { id: 'shows',    label: 'Shows',    icon: 'ph-television', render: renderShows },
+  { id: 'movies',   label: 'Movies',   icon: 'ph-film-slate', render: renderMovies },
+  { id: 'history',  label: 'History',  icon: 'ph-clock-counter-clockwise', render: renderHistory },
+  { id: 'ratings',  label: 'Ratings',  icon: 'ph-star', render: renderRatings },
+  { id: 'reactions', label: 'Reactions', icon: 'ph-heart', render: renderReactions },
+  { id: 'lists',    label: 'Lists',    icon: 'ph-list-bullets', render: renderLists },
+  { id: 'profile',  label: 'Profile',  icon: 'ph-user', render: renderProfile },
+  { id: 'raw',      label: 'All data', icon: 'ph-database', render: renderRaw },
+];
+
+function buildChrome() {
+  // desktop brand rail (inserted once)
+  if (!$('.brand-rail')) {
+    const rail = el('div', { class: 'brand-rail' }, [el('span', { class: 'brand-dot small' }), 'TV Time Archive']);
+    $('#app').prepend(rail);
+  }
+  const bar = $('#tabbar');
+  bar.innerHTML = '';
+  for (const v of VIEWS) {
+    bar.append(el('button', {
+      class: 'tab' + (v.id === STATE.view ? ' active' : ''),
+      'data-view': v.id,
+      onclick: () => renderView(v.id),
+    }, [el('i', { class: 'ph ' + v.icon + ' tab-ico' }), el('span', { text: v.label })]));
+  }
+  buildSettingsMenu();
+}
+
+function resetApp() {
+  IDB.clear();   // "Change source .zip file" also forgets the stored archive
+  STATE.tables = {}; STATE.model = null; STATE.listState = {}; STATE.pendingScroll = null;
+  $('#app').hidden = true; $('#landing').hidden = false;
+  $('#fileInput').value = ''; $('#landingError').hidden = true;
+  showChooser();
+}
+
+/* Topbar settings menu: auto-load toggle, cache clear, change file. */
+function buildSettingsMenu() {
+  const host = $('#settingsHost');
+  host.innerHTML = '';
+  const gear = el('button', { class: 'settings-btn', title: 'Settings', 'aria-label': 'Settings' }, [el('i', { class: 'ph ph-gear' })]);
+  const pop = el('div', { class: 'menu-pop', hidden: '' });
+
+  const sw = el('span', { class: 'switch' + (Enrichment.enabled ? ' on' : '') });
+  const toggleItem = el('button', { class: 'menu-item' }, [el('span', { text: 'Auto-load show metadata' }), sw]);
+  toggleItem.addEventListener('click', (e) => {
+    e.stopPropagation();
+    Enrichment.enabled = !Enrichment.enabled;
+    try { localStorage.setItem('tvt.enrich', Enrichment.enabled ? '1' : '0'); } catch {}
+    sw.classList.toggle('on', Enrichment.enabled);
+    renderView(STATE.view);
+  });
+  const note = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-warning-circle' }), el('span', { text: 'This data is fetched from the TVMaze API.' })]);
+
+  const clearItem = el('button', { class: 'menu-item' }, [el('span', { text: 'Clear show metadata cache' })]);
+  clearItem.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const n = Enrichment.clearCache();
+    clearItem.firstChild.textContent = n ? `Cleared ${n} ✓` : 'Nothing cached';
+    setTimeout(() => { clearItem.firstChild.textContent = 'Clear show metadata cache'; }, 1500);
+    renderView(STATE.view);
+  });
+
+  // Movie titles via Wikidata (separate opt-in + cache)
+  const msw = el('span', { class: 'switch' + (MovieMeta.enabled ? ' on' : '') });
+  const movieToggle = el('button', { class: 'menu-item' }, [el('span', { text: 'Auto-load movie titles' }), msw]);
+  movieToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    MovieMeta.enabled = !MovieMeta.enabled;
+    try { localStorage.setItem('tvt.movies', MovieMeta.enabled ? '1' : '0'); } catch {}
+    msw.classList.toggle('on', MovieMeta.enabled);
+    renderView(STATE.view);
+  });
+  const movieNote = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-warning-circle' }), el('span', { text: 'This data is fetched from the Wikidata API, and may not be accurate.' })]);
+  const movieClear = el('button', { class: 'menu-item' }, [el('span', { text: 'Clear movie title cache' })]);
+  movieClear.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const n = MovieMeta.clearCache();
+    movieClear.firstChild.textContent = n ? `Cleared ${n} ✓` : 'Nothing cached';
+    setTimeout(() => { movieClear.firstChild.textContent = 'Clear movie title cache'; }, 1500);
+    renderView(STATE.view);
+  });
+
+  const changeItem = el('button', { class: 'menu-item' }, [el('span', { text: 'Change source .zip file' })]);
+  changeItem.addEventListener('click', () => { close(); resetApp(); });
+  const changeNote = el('div', { class: 'menu-note' }, [el('span', { text: 'Stored only in this browser. This removes it.' })]);
+
+  pop.append(toggleItem, note, el('div', { class: 'menu-sep' }), clearItem,
+    el('div', { class: 'menu-sep' }), movieToggle, movieNote, el('div', { class: 'menu-sep' }), movieClear,
+    el('div', { class: 'menu-sep' }), changeItem, changeNote);
+  host.append(gear, pop);
+
+  const onDoc = (e) => { if (!host.contains(e.target)) close(); };
+  function close() { pop.hidden = true; document.removeEventListener('click', onDoc); }
+  gear.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (pop.hidden) { pop.hidden = false; setTimeout(() => document.addEventListener('click', onDoc), 0); }
+    else close();
+  });
+}
+
+function renderView(id) {
+  STATE.view = id;
+  for (const t of document.querySelectorAll('.tab')) t.classList.toggle('active', t.dataset.view === id);
+  $('#globalSearch').hidden = true;
+  const root = $('#viewRoot');
+  root.innerHTML = '';
+  window.scrollTo(0, 0);
+  (VIEWS.find(v => v.id === id) || VIEWS[0]).render(root);
+}
+
+function viewHead(root, title, subtitle) {
+  root.append(el('div', { class: 'view-head' }, [el('h2', { text: title }), subtitle ? el('p', { text: subtitle }) : null]));
+}
+
+/* ===================================================================
+   VIEW: Overview
+   =================================================================== */
+function renderOverview(root) {
+  const o = STATE.model.overview;
+  const p = STATE.model.profile;
+  viewHead(root, p.displayName ? `${p.displayName}’s archive` : 'Overview',
+    `Tracked since ${fmtDate(o.firstWatch)} · last activity ${fmtDate(o.lastWatch)}`);
+
+  const cards = [
+    // single-accent: only the hero stat (total time in TV) is coral; the rest read neutral
+    ['episodesWatched', 'Episodes watched', o.episodesWatched, '', null],
+    ['moviesWatched', 'Movies watched', o.moviesWatched, '', null],
+    ['seriesRuntime', 'Time in TV', fmtDuration(o.seriesRuntime), 'accent', 'series runtime'],
+    ['moviesRuntime', 'Time in film', fmtDuration(o.moviesRuntime), '', 'movie runtime'],
+    ['showsFollowed', 'Shows followed', fmtInt(o.showsFollowed), '', `${fmtInt(o.showsTracked)} tracked total`],
+    ['moviesTracked', 'Movies tracked', fmtInt(o.moviesTracked), '', null],
+    ['reactionsLogged', 'Reactions logged', fmtInt(o.reactionsLogged), '', null],
+    ['showRatings', 'Shows rated', fmtInt(o.showRatings), '', 'star-rated 1–5'],
+  ];
+  const grid = el('div', { class: 'stat-grid' });
+  for (const [, label, value, cls, sub] of cards) {
+    grid.append(el('div', { class: 'stat-card' }, [
+      el('div', { class: 'stat-value' + (cls ? ' ' + cls : ''), text: typeof value === 'number' ? fmtInt(value) : value }),
+      el('div', { class: 'stat-label', text: label }),
+      sub ? el('div', { class: 'stat-sub', text: sub }) : null,
+    ]));
+  }
+  root.append(grid);
+
+  // Top shows by episodes watched
+  root.append(el('div', { class: 'section-title', text: 'Most-watched shows' }));
+  const top = STATE.model.shows.filter(s => s.epWatched > 0).slice(0, 8);
+  const list = el('div', { class: 'cards two-col' });
+  for (const s of top) {
+    list.append(el('div', { class: 'item' }, [
+      el('div', { class: 'item-main' }, [
+        el('div', { class: 'item-title', text: s.title }),
+        el('div', { class: 'item-meta' }, [ el('span', { html: `<b>${fmtInt(s.epWatched)}</b> episodes` }), s.rating ? el('span', { html: `<i class="ph-fill ph-star" style="color:var(--accent)"></i> ${s.rating}` }) : null ]),
+      ]),
+    ]));
+  }
+  root.append(top.length ? list : el('div', { class: 'empty', text: 'No watch data found.' }));
+
+  root.append(el('div', { class: 'section-title', text: 'Recent activity' }));
+  const recent = STATE.model.history.slice(0, 6);
+  const rlist = el('div', { class: 'cards' });
+  for (const ev of recent) rlist.append(historyItem(ev));
+  root.append(recent.length ? rlist : el('div', { class: 'empty', text: 'No recent activity.' }));
+}
+
+/* ===================================================================
+   VIEW: Stats — precomputed marathons & monthly charts (stats-prod-cache)
+   =================================================================== */
+const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fmtMonth = (s) => { const [y, mo] = String(s).split('-'); return (y && mo) ? `${MONTHS[+mo] || mo} '${y.slice(2)}` : s; };
+
+function barChart(root, data, fmt) {
+  const max = Math.max(1, ...data.map(d => d.value));
+  const wrap = el('div', { class: 'bars' });
+  for (const d of data) {
+    wrap.append(el('div', { class: 'bar-row' }, [
+      el('span', { class: 'bar-label', text: fmtMonth(d.label) }),
+      el('div', { class: 'bar-track' }, [el('div', { class: 'bar-fill', style: `width:${Math.round(d.value / max * 100)}%` })]),
+      el('span', { class: 'bar-val', text: (fmt || fmtInt)(d.value) }),
+    ]));
+  }
+  root.append(wrap);
+}
+
+function renderStats(root) {
+  const s = STATE.model.stats;
+  viewHead(root, 'Stats', 'Marathons and monthly activity');
+  if (!s || !s.hasData) { root.append(el('div', { class: 'empty', text: 'No stats found.' })); return; }
+
+  if (s.marathons.length) {
+    root.append(el('div', { class: 'section-title', text: 'Biggest marathons' }));
+    const cards = el('div', { class: 'cards two-col' });
+    for (const m of s.marathons) {
+      cards.append(el('div', { class: 'item' }, [
+        el('div', { class: 'item-main' }, [
+          el('div', { class: 'item-title', text: m.show }),
+          el('div', { class: 'item-meta' }, [el('span', { html: `<b>${fmtInt(m.episodes)}</b> episodes in <b>${fmtInt(m.days)}</b> day${m.days === 1 ? '' : 's'}` })]),
+        ]),
+      ]));
+    }
+    root.append(cards);
+  }
+  if (s.epByMonth.length) {
+    root.append(el('div', { class: 'section-title', text: 'Episodes watched per month' }));
+    barChart(root, s.epByMonth);
+  }
+  if (s.hoursByMonth.length) {
+    root.append(el('div', { class: 'section-title', text: 'Hours watched per month' }));
+    barChart(root, s.hoursByMonth, v => `${fmtInt(v)}h`);
+  }
+  if (s.moviesByMonth.length && s.moviesByMonth.some(d => d.value)) {
+    root.append(el('div', { class: 'section-title', text: 'Movies watched per month' }));
+    barChart(root, s.moviesByMonth);
+  }
+}
+
+/* Shared toolbar: row 1 = search (+ optional Export dropdown, pinned top-right so it's
+   in the same place on every page); row 2 = the view's sort/filter selects + count. */
+function buildToolbar(root, opts = {}) {
+  const search = el('input', { type: 'search', placeholder: 'Search…', class: 'tb-search' });
+  const row1 = el('div', { class: 'tb-row1' }, [search, opts.onExport ? makeExportMenu(opts.onExport) : null]);
+  const controls = el('div', { class: 'tb-controls' });
+  root.append(el('div', { class: 'toolbar' }, [row1, controls]));
+  return { search, controls };
+}
+
+/* Export dropdown: a button that opens a small CSV / JSON menu. */
+function makeExportMenu(onExport) {
+  const wrap = el('div', { class: 'export-menu' });
+  const btn = el('button', { class: 'btn secondary', html: '<i class="ph ph-download-simple"></i> Export' });
+  const onDoc = (e) => { if (!wrap.contains(e.target)) close(); };
+  function close() { pop.hidden = true; document.removeEventListener('click', onDoc); }
+  const pick = (fmt) => (e) => { e.stopPropagation(); close(); onExport(fmt); };
+  const pop = el('div', { class: 'menu-pop export-pop', hidden: '' }, [
+    el('button', { class: 'menu-item', text: 'CSV', onclick: pick('csv') }),
+    el('button', { class: 'menu-item', text: 'JSON', onclick: pick('json') }),
+  ]);
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (pop.hidden) { pop.hidden = false; setTimeout(() => document.addEventListener('click', onDoc), 0); } else close();
+  });
+  wrap.append(btn, pop);
+  return wrap;
+}
+
+/* ===================================================================
+   Shared: filterable / sortable / paginated card list
+   =================================================================== */
+function listView(root, cfg) {
+  // cfg: { title, subtitle, items, searchKeys, sorts:[{id,label,fn}], renderItem, exportName, exportRow, twoCol, beforeList }
+  viewHead(root, cfg.title, cfg.subtitle);
+
+  if (cfg.beforeList) { const pre = el('div'); cfg.beforeList(pre); root.append(pre); }
+
+  const saved = (cfg.stateKey && STATE.listState[cfg.stateKey]) || {};
+  const filterDefault = cfg.filter ? cfg.filter.default : null;
+  const state = { q: saved.q || '', sort: saved.sort || cfg.sorts[0].id, filterId: saved.filterId || filterDefault, page: saved.page || 0, pageSize: cfg.pageSize || 30 };
+  const persist = () => { if (cfg.stateKey) STATE.listState[cfg.stateKey] = { q: state.q, sort: state.sort, filterId: state.filterId, page: state.page }; };
+
+  const doExport = (fmt) => {
+    const rows = computed().map(cfg.exportRow);
+    if (fmt === 'csv') download(cfg.exportName + '.csv', toCSV(rows), 'text/csv');
+    else download(cfg.exportName + '.json', JSON.stringify(rows, null, 2), 'application/json');
+  };
+  const { search, controls } = buildToolbar(root, cfg.exportRow ? { onExport: doExport } : {});
+  search.value = state.q;
+  const sortSel = el('select', { title: 'Sort' });
+  for (const s of cfg.sorts) sortSel.append(el('option', { value: s.id, text: s.label }));
+  sortSel.value = state.sort;
+  let filterSel = null;
+  if (cfg.filter) {
+    filterSel = el('select', { title: 'Filter' });
+    for (const o of cfg.filter.options) filterSel.append(el('option', { value: o.id, text: o.label }));
+    filterSel.value = state.filterId;
+  }
+  const countPill = el('span', { class: 'count-pill' });
+  controls.append(...[sortSel, filterSel, countPill].filter(Boolean));
+
+  const container = el('div', { class: 'cards' + (cfg.twoCol ? ' two-col' : '') });
+  const pager = el('div', { class: 'pager' });
+  root.append(container, pager);
+
+  function computed() {
+    let items = cfg.items;
+    if (cfg.filter) {
+      const opt = cfg.filter.options.find(o => o.id === state.filterId) || cfg.filter.options[0];
+      items = items.filter(opt.test);
+    }
+    if (state.q) {
+      const q = norm(state.q);
+      items = items.filter(it => {
+        const hay = cfg.searchText ? cfg.searchText(it) : cfg.searchKeys.map(k => it[k]).join(' ');
+        return norm(hay).includes(q);
+      });
+    }
+    const sort = cfg.sorts.find(s => s.id === state.sort);
+    items = [...items].sort(sort.fn);
+    return items;
+  }
+
+  function draw() {
+    const items = computed();
+    // Only show the count when a search/filter is narrowing results; the subtitle gives the total.
+    countPill.hidden = items.length === cfg.items.length;
+    countPill.textContent = `${fmtInt(items.length)} of ${fmtInt(cfg.items.length)}`;
+    const pages = Math.max(1, Math.ceil(items.length / state.pageSize));
+    state.page = Math.min(state.page, pages - 1);
+    const slice = items.slice(state.page * state.pageSize, (state.page + 1) * state.pageSize);
+
+    container.innerHTML = '';
+    if (!slice.length) { container.append(el('div', { class: 'empty', text: 'Nothing matches your search.' })); }
+    for (const it of slice) container.append(cfg.renderItem(it));
+
+    pager.innerHTML = '';
+    if (pages > 1) {
+      const prev = el('button', { text: '‹ Prev', disabled: state.page === 0 ? '' : false, onclick: () => { state.page--; draw(); window.scrollTo(0,0); } });
+      const next = el('button', { text: 'Next ›', disabled: state.page >= pages - 1 ? '' : false, onclick: () => { state.page++; draw(); window.scrollTo(0,0); } });
+      pager.append(prev, el('span', { text: `Page ${state.page + 1} of ${pages}` }), next);
+    }
+    persist();
+
+    // Lazily enrich the shows on this page; redraw when posters/titles/images arrive.
+    // Light fetch (poster only) unless the view needs episodes (cfg.enrichFull).
+    if (cfg.enrichShows && Enrichment.enabled) {
+      Enrichment.ensure(cfg.enrichShows(slice), cfg.enrichFull === true)
+        .then(n => { if (n > 0 && document.contains(container)) draw(); });
+    }
+    if (cfg.enrichMovies && MovieMeta.enabled) {
+      MovieMeta.ensure(cfg.enrichMovies(slice))
+        .then(n => { if (n > 0 && document.contains(container)) draw(); });
+    }
+  }
+
+  search.addEventListener('input', () => { state.q = search.value; state.page = 0; draw(); });
+  sortSel.addEventListener('change', () => { state.sort = sortSel.value; state.page = 0; draw(); });
+  if (filterSel) filterSel.addEventListener('change', () => { state.filterId = filterSel.value; state.page = 0; draw(); });
+
+  draw();
+
+  // Restore scroll once, when returning to this list (e.g. back from a show).
+  if (cfg.stateKey && STATE.pendingScroll && STATE.pendingScroll.key === cfg.stateKey) {
+    const y = STATE.pendingScroll.y;
+    STATE.pendingScroll = null;
+    requestAnimationFrame(() => window.scrollTo(0, y));
+  }
+}
+
+/* ===================================================================
+   VIEW: Shows
+   =================================================================== */
+function statusBadge(status) {
+  const map = { following: ['good', 'Following'], archived: ['dim', 'Archived'], stopped: ['warn', 'Stopped'], watchlist: ['accent', 'Watchlist'], watched: ['good', 'Watched'], rated: ['warn', 'Rated'] };
+  const [cls, label] = map[status] || ['dim', status || '—'];
+  return el('span', { class: 'badge ' + cls, text: label });
+}
+
+function renderShows(root) {
+  const shows = STATE.model.shows;
+  listView(root, {
+    title: 'TV Shows', subtitle: `${fmtInt(shows.length)} shows`,
+    items: shows, searchKeys: ['title'], twoCol: true, stateKey: 'shows',
+    enrichShows: (slice) => slice.map(s => ({ seriesId: s.id, title: s.title })),
+    filter: { default: 'all', options: [
+      { id: 'all', label: 'All statuses', test: () => true },
+      { id: 'following', label: 'Following', test: s => s.status === 'following' },
+      { id: 'archived', label: 'Archived', test: s => s.status === 'archived' },
+      { id: 'stopped', label: 'Stopped', test: s => s.status === 'stopped' },
+      { id: 'rated', label: 'Rated', test: s => !!s.rating },
+    ] },
+    sorts: [
+      { id: 'watched', label: 'Most episodes watched', fn: (a, b) => b.epWatched - a.epWatched },
+      { id: 'recent', label: 'Recently watched', fn: (a, b) => (b.lastWatched?.getTime() || 0) - (a.lastWatched?.getTime() || 0) },
+      { id: 'followed', label: 'Recently followed', fn: (a, b) => (b.followedAt?.getTime() || 0) - (a.followedAt?.getTime() || 0) },
+      { id: 'rating', label: 'Highest rated', fn: (a, b) => (b.rating || 0) - (a.rating || 0) },
+      { id: 'az', label: 'A → Z', fn: (a, b) => a.title.localeCompare(b.title) },
+    ],
+    renderItem: (s) => {
+      const kids = [];
+      if (Enrichment.enabled) {
+        const poster = Enrichment.posterFor(s.title, s.id);
+        kids.push(el('div', { class: 'item-poster' }, poster ? [el('img', { src: poster, loading: 'lazy', alt: '' })] : []));
+      }
+      kids.push(el('div', { class: 'item-main' }, [
+        el('div', { class: 'item-title', text: s.title }),
+        el('div', { class: 'item-meta' }, [
+          el('span', { html: `<b>${fmtInt(s.epWatched)}</b> ep watched` }),
+          s.rewatches ? el('span', { html: `<b>${fmtInt(s.rewatches)}</b> rewatch` }) : null,
+          s.emotionCount ? el('span', { html: `<i class="ph ph-heart"></i> ${fmtInt(s.emotionCount)}` }) : null,
+          s.lastWatched ? el('span', { text: `last ${fmtDate(s.lastWatched)}` }) : null,
+        ]),
+      ]));
+      kids.push(el('div', { class: 'item-right' }, [
+        s.rating ? el('div', { class: 'rating-chip', html: `${s.rating}<span class="star">★</span>` }) : null,
+        el('div', { html: '' }), statusBadge(s.status),
+      ]));
+      return el('div', { class: 'item clickable', title: 'View episode progress', onclick: () => openShowDetail(s) }, kids);
+    },
+    exportName: 'tvtime-shows',
+    exportRow: (s) => ({ title: s.title, status: s.status || '', episodes_watched: s.epWatched, rewatches: s.rewatches, rating: s.rating ?? '', emotion_count: s.emotionCount, seen_episodes: s.seenCount, followed_at: s.followedAt ? s.followedAt.toISOString() : '', last_watched: s.lastWatched ? s.lastWatched.toISOString() : '', sources: (s.sources || []).join('|') }),
+  });
+}
+
+/* ===================================================================
+   Show detail — per-show episode watch progress (opened from Shows).
+   Watch counts come from your history; the full episode list & titles
+   come from TVmaze (auto if enrichment is on, else one click to load).
+   =================================================================== */
+const pad2 = (n) => { const s = String(n); return /^\d$/.test(s) ? '0' + s : s; };
+
+function openShowDetail(show) {
+  // Remember where the Shows list was scrolled so we can restore it on back.
+  STATE.pendingScroll = { key: 'shows', y: window.scrollY || window.pageYOffset || 0 };
+  const root = $('#viewRoot');
+  root.innerHTML = '';
+  window.scrollTo(0, 0);
+
+  root.append(el('div', { class: 'backbar' }, [
+    el('button', { class: 'back-btn', text: '‹ Shows', onclick: () => renderView('shows') }),
+  ]));
+  const poster = el('div', { class: 'detail-poster' });
+  const setPoster = (url) => { poster.innerHTML = ''; if (url) poster.append(el('img', { src: url, loading: 'lazy', alt: '' })); };
+  root.append(el('div', { class: 'detail-hero' }, [
+    poster,
+    el('div', { class: 'detail-hero-text' }, [
+      el('h2', { text: show.title }),
+      el('div', { class: 'detail-sub' }, [
+        el('span', { html: `<b>${fmtInt(show.epWatched || 0)}</b> episodes watched` }),
+        show.rewatches ? el('span', { html: `<b>${fmtInt(show.rewatches)}</b> rewatches` }) : null,
+        show.emotionCount ? el('span', { html: `<i class="ph ph-heart"></i> ${fmtInt(show.emotionCount)}` }) : null,
+        show.rating ? el('span', { html: `${show.rating}★` }) : null,
+        statusBadge(show.status),
+      ]),
+    ]),
+  ]));
+
+  // Per-episode watch dates (each watch + rewatch event) from history.
+  const datesByEp = {};
+  for (const ev of STATE.model.history) {
+    if (ev.type !== 'episode' || norm(ev.title) !== norm(show.title)) continue;
+    (datesByEp[`${ev.season}|${ev.episode}`] ||= []).push(ev.date);
+  }
+  for (const k in datesByEp) datesByEp[k].sort((a, b) => (a ? a.getTime() : 0) - (b ? b.getTime() : 0));
+
+  const body = el('div');
+  root.append(body);
+  const key = Enrichment.keyFor(show.id, show.title);
+
+  const load = () => {
+    body.innerHTML = '';
+    body.append(el('div', { class: 'enrich-note' }, [ el('div', { class: 'spinner' }), 'Loading from TVmaze…' ]));
+    Enrichment.ensure([{ seriesId: show.id, title: show.title }], true).then(() => {
+      const v = Enrichment.getCached(key);
+      render(v && v.e && Object.keys(v.e).length ? v.e : null, v && v.f);
+    });
+  };
+  const refetch = () => { Enrichment.forget(key); load(); };
+
+  const render = (epMap, failed) => {
+    body.innerHTML = '';
+    const v = Enrichment.getCached(key);
+    setPoster(v && v.img);
+    const note = el('div', { class: 'enrich-note' });
+    if (epMap) {
+      note.append(el('span', { text: 'Episodes from TVmaze.' }));
+      note.append(el('button', { class: 'btn secondary', text: '↻ Refetch', onclick: refetch }));
+    } else {
+      note.append(el('span', { text: failed ? 'Not found on TVmaze.' : 'Showing your watched episodes.' }));
+      note.append(el('button', { class: 'btn secondary', text: failed ? '↻ Retry' : 'Load episodes', onclick: refetch }));
+    }
+    body.append(note);
+    renderSeasons(body, datesByEp, epMap, v && v.i);
+  };
+
+  const cached = Enrichment.getCached(key);
+  if (cached && cached.full && cached.e && Object.keys(cached.e).length) render(cached.e, false);
+  else if (cached && cached.f) render(null, true);
+  else if (Enrichment.enabled) load();
+  else render(null, false);
+}
+
+function renderSeasons(container, datesByEp, epMap, imgMap) {
+  const full = !!epMap;
+  const seasons = {}; // sNum -> { eNum -> title|null }
+  const source = full ? Object.keys(epMap) : Object.keys(datesByEp);
+  for (const k of source) { const [s, e] = k.split('|'); (seasons[s] ||= {})[e] = full ? epMap[k] : null; }
+
+  const sNums = Object.keys(seasons).sort((a, b) => Number(a) - Number(b));
+  if (!sNums.length) { container.append(el('div', { class: 'empty', text: 'No episode data for this show.' })); return; }
+
+  // absolute-episode offsets across regular seasons (season > 0)
+  const absOffset = {}; let running = 0;
+  for (const s of sNums) if (Number(s) > 0) { absOffset[s] = running; running += Object.keys(seasons[s]).length; }
+
+  for (const s of sNums) {
+    const eNums = Object.keys(seasons[s]).sort((a, b) => Number(a) - Number(b));
+    const watched = eNums.filter(e => (datesByEp[`${s}|${e}`] || []).length).length;
+    const total = eNums.length;
+    const complete = total > 0 && watched === total;
+    const det = el('details', { class: 'season' });   // collapsed by default
+    det.append(el('summary', {}, [
+      el('span', { class: 'season-title', text: Number(s) === 0 ? 'Specials' : `Season ${s}` }),
+      el('span', { class: 'season-prog' + (complete ? ' complete' : ''), text: `${watched}/${total}` }),
+    ]));
+    for (const e of eNums) {
+      const dates = datesByEp[`${s}|${e}`] || [];
+      const c = dates.length;
+      const abs = full && Number(s) > 0 ? absOffset[s] + Number(e) : null;
+      const numTxt = `S${pad2(s)} · E${pad2(e)}` + (abs ? ` (E${pad2(abs)})` : '');
+      const thumb = imgMap && imgMap[`${s}|${e}`];
+      det.append(el('div', { class: 'ep-row' }, [
+        el('div', { class: 'ep-thumb' }, thumb ? [el('img', { src: thumb, loading: 'lazy', alt: '' })] : []),
+        el('div', { class: 'ep-body' }, [
+          el('div', { class: 'ep-num', text: numTxt }),
+          el('div', { class: 'ep-title' + (c ? '' : ' unseen'), text: seasons[s][e] || `Episode ${e}` }),
+          c ? el('div', { class: 'ep-dates' }, dates.map((d, i) => el('span', { text: (i === 0 ? '▶ ' : '↻ ') + fmtDateTime(d) }))) : null,
+        ]),
+        c ? el('span', { class: 'count-badge' + (c === 1 ? ' once' : ''), text: `×${c}` }) : el('span', { class: 'unwatched-dot' }),
+      ]));
+    }
+    container.append(det);
+  }
+}
+
+/* ===================================================================
+   VIEW: Movies
+   =================================================================== */
+function renderMovies(root) {
+  const movies = STATE.model.movies;
+  listView(root, {
+    title: 'Movies', subtitle: `${fmtInt(movies.length)} movies`,
+    items: movies, searchKeys: ['title'], twoCol: true, stateKey: 'movies',
+    searchText: (mv) => `${mv.title} ${movieTitle(mv.title)}`,
+    enrichMovies: (slice) => slice.map(mv => mv.title),
+    filter: { default: 'all', options: [
+      { id: 'all', label: 'All', test: () => true },
+      { id: 'watched', label: 'Watched', test: mv => mv.watched },
+      { id: 'watchlist', label: 'Watchlist', test: mv => mv.status === 'watchlist' },
+      { id: 'reacted', label: 'Reacted', test: mv => mv.reacted },
+    ] },
+    sorts: [
+      { id: 'recent', label: 'Recently watched', fn: (a, b) => (b.watchedAt?.getTime() || 0) - (a.watchedAt?.getTime() || 0) },
+      { id: 'runtime', label: 'Longest', fn: (a, b) => b.runtime - a.runtime },
+      { id: 'az', label: 'A → Z', fn: (a, b) => a.title.localeCompare(b.title) },
+    ],
+    renderItem: (mv) => el('div', { class: 'item' }, [
+      el('div', { class: 'item-main' }, [
+        el('div', { class: 'item-title', text: movieTitle(mv.title) }),
+        el('div', { class: 'item-meta' }, [
+          movieTitle(mv.title) !== mv.title ? el('span', { text: mv.title }) : null,
+          mv.runtime ? el('span', { text: fmtDuration(mv.runtime) }) : null,
+          mv.rewatches ? el('span', { text: `${mv.rewatches} rewatch` }) : null,
+          ...(mv.watchDates.length
+            ? mv.watchDates.map((d, i) => el('span', { class: 'watch-date', text: (i === 0 ? '▶ ' : '↻ ') + fmtDate(d) }))
+            : (mv.followedAt ? [el('span', { text: `added ${fmtDate(mv.followedAt)}` })] : [])),
+        ]),
+      ]),
+      el('div', { class: 'item-right' }, [
+        mv.reacted ? el('span', { class: 'badge accent', html: '<i class="ph ph-heart"></i> reacted' }) : null,
+        el('div', { html: '' }), statusBadge(mv.status),
+      ]),
+    ]),
+    exportName: 'tvtime-movies',
+    exportRow: (mv) => ({ title: mv.title, status: mv.status || '', watched: mv.watched, watch_count: mv.watchCount, rewatches: mv.rewatches, runtime_seconds: mv.runtime, reacted: mv.reacted, watched_at: mv.watchedAt ? mv.watchedAt.toISOString() : '', followed_at: mv.followedAt ? mv.followedAt.toISOString() : '', sources: (mv.sources || []).join('|') }),
+  });
+}
+
+/* ===================================================================
+   VIEW: History (timeline)
+   =================================================================== */
+function historyItem(ev) {
+  const info = ev.type === 'episode' ? Enrichment.epInfo(ev.title, ev.seriesId, ev.season, ev.episode) : null;
+  const epName = info && info.name;
+  const sub = ev.type === 'episode'
+    ? `S${ev.season || '?'}·E${ev.episode || '?'}${epName ? ' · ' + epName : ''}${ev.rewatch ? ' · rewatch' : ''}`
+    : `Movie${ev.rewatch ? ' · rewatch' : ''}`;
+  const kids = [];
+  // Thumbnail slot for both types when enrichment is on: episodes get the image,
+  // movies get an empty placeholder so rows stay aligned.
+  if (Enrichment.enabled) {
+    const img = ev.type === 'episode' && info && info.image ? info.image : null;
+    kids.push(el('div', { class: 'item-thumb' }, img ? [el('img', { src: img, loading: 'lazy', alt: '' })] : []));
+  }
+  kids.push(el('div', { class: 'item-main' }, [
+    el('div', { class: 'item-title', text: ev.type === 'movie' ? movieTitle(ev.title) : ev.title }),
+    el('div', { class: 'item-meta' }, [
+      el('span', { text: sub }),
+      ev.runtime ? el('span', { text: fmtDuration(ev.runtime) }) : null,
+      el('span', { text: fmtDateTime(ev.date) }),
+    ]),
+  ]));
+  kids.push(el('div', { class: 'item-right' }, [
+    el('span', { class: 'badge ' + (ev.type === 'movie' ? 'warn' : 'accent'), html: ev.type === 'movie' ? '<i class="ph ph-film-slate"></i>' : '<i class="ph ph-television"></i>' }),
+  ]));
+  return el('div', { class: 'item' }, kids);
+}
+
+function renderHistory(root) {
+  const events = STATE.model.history;
+  const saved = STATE.listState.history || {};
+  const state = { q: saved.q || '', type: saved.type || 'all', sort: saved.sort || 'recent', page: saved.page || 0, pageSize: 60 };
+  const persist = () => { STATE.listState.history = { q: state.q, type: state.type, sort: state.sort, page: state.page }; };
+
+  viewHead(root, 'Watch history', `${fmtInt(events.length)} watch events`);
+  const doExport = (fmt) => {
+    const rows = computed().map(e => ({ date: e.date ? e.date.toISOString() : '', type: e.type, rewatch: e.rewatch, title: e.title, season: e.season, episode: e.episode, runtime_seconds: e.runtime }));
+    if (fmt === 'csv') download('tvtime-history.csv', toCSV(rows), 'text/csv');
+    else download('tvtime-history.json', JSON.stringify(rows, null, 2), 'application/json');
+  };
+  const { search, controls } = buildToolbar(root, { onExport: doExport });
+  search.value = state.q;
+  const sortSel = el('select', { title: 'Sort' });
+  for (const [v, l] of [['recent', 'Newest first'], ['oldest', 'Oldest first']]) sortSel.append(el('option', { value: v, text: l }));
+  sortSel.value = state.sort;
+  const typeSel = el('select', { title: 'Filter' });
+  for (const [v, l] of [['all', 'All'], ['episode', 'Episodes'], ['movie', 'Movies'], ['rewatch', 'Rewatches only']]) typeSel.append(el('option', { value: v, text: l }));
+  typeSel.value = state.type;
+  const countPill = el('span', { class: 'count-pill' });
+  controls.append(sortSel, typeSel, countPill);
+
+  const container = el('div');
+  const pager = el('div', { class: 'pager' });
+  root.append(container, pager);
+
+  function computed() {
+    let items = events;
+    if (state.type === 'rewatch') items = items.filter(e => e.rewatch);
+    else if (state.type !== 'all') items = items.filter(e => e.type === state.type);
+    if (state.q) {
+      const q = norm(state.q);
+      items = items.filter(e => norm(e.title).includes(q) || (e.type === 'movie' && norm(movieTitle(e.title)).includes(q)));
+    }
+    if (state.sort === 'oldest') items = [...items].reverse();   // base list is newest-first
+    return items;
+  }
+  function draw() {
+    const items = computed();
+    countPill.hidden = items.length === events.length;
+    countPill.textContent = `${fmtInt(items.length)} of ${fmtInt(events.length)}`;
+    const pages = Math.max(1, Math.ceil(items.length / state.pageSize));
+    state.page = Math.min(state.page, pages - 1);
+    const slice = items.slice(state.page * state.pageSize, (state.page + 1) * state.pageSize);
+    container.innerHTML = '';
+    let lastDay = null;
+    const wrap = el('div', { class: 'cards' });
+    for (const ev of slice) {
+      const day = ev.date ? ev.date.toDateString() : 'Unknown date';
+      if (day !== lastDay) { container.append(wrap.childNodes.length ? wrap.cloneNode(true) : document.createComment('')); wrap.innerHTML = ''; container.append(el('div', { class: 'day-divider', text: ev.date ? fmtDate(ev.date) : 'Unknown date' })); lastDay = day; const nw = el('div', { class: 'cards' }); container.append(nw); wrap._cur = nw; }
+      (wrap._cur || wrap).append(historyItem(ev));
+    }
+    pager.innerHTML = '';
+    if (pages > 1) {
+      pager.append(
+        el('button', { text: '‹ Prev', disabled: state.page === 0 ? '' : false, onclick: () => { state.page--; draw(); window.scrollTo(0, 0); } }),
+        el('span', { text: `Page ${state.page + 1} of ${pages}` }),
+        el('button', { text: 'Next ›', disabled: state.page >= pages - 1 ? '' : false, onclick: () => { state.page++; draw(); window.scrollTo(0, 0); } }),
+      );
+    }
+
+    // Lazily fetch episode titles/thumbnails for the shows on this page; redraw when they arrive.
+    if (Enrichment.enabled) {
+      Enrichment.ensure(slice.filter(e => e.type === 'episode'), true)
+        .then(n => { if (n > 0 && STATE.view === 'history') draw(); });
+    }
+    if (MovieMeta.enabled) {
+      MovieMeta.ensure(slice.filter(e => e.type === 'movie').map(e => e.title))
+        .then(n => { if (n > 0 && STATE.view === 'history') draw(); });
+    }
+    persist();
+  }
+  search.addEventListener('input', () => { state.q = search.value; state.page = 0; draw(); });
+  sortSel.addEventListener('change', () => { state.sort = sortSel.value; state.page = 0; draw(); });
+  typeSel.addEventListener('change', () => { state.type = typeSel.value; state.page = 0; draw(); });
+  draw();
+}
+
+/* ===================================================================
+   VIEW: Ratings — genuine show star ratings (tv_show_rate, 1–5)
+   =================================================================== */
+function renderRatings(root) {
+  const list = STATE.model.showRatings.list;
+  if (!list.length) {
+    viewHead(root, 'Ratings', '');
+    root.append(el('div', { class: 'empty', text: 'No star ratings.' }));
+    return;
+  }
+  listView(root, {
+    title: 'Ratings', subtitle: `${fmtInt(list.length)} rated shows`,
+    items: list, searchKeys: ['title'], stateKey: 'ratings',
+    filter: { default: 'all', options: [
+      { id: 'all', label: 'All scores', test: () => true },
+      { id: '5', label: '5 ★', test: r => r.score === 5 },
+      { id: '4', label: '4 ★', test: r => r.score === 4 },
+      { id: '3', label: '3 ★', test: r => r.score === 3 },
+      { id: '2', label: '2 ★', test: r => r.score === 2 },
+      { id: '1', label: '1 ★', test: r => r.score === 1 },
+    ] },
+    sorts: [
+      { id: 'score', label: 'Highest rated', fn: (a, b) => b.score - a.score },
+      { id: 'recent', label: 'Most recent', fn: (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0) },
+      { id: 'az', label: 'A → Z', fn: (a, b) => a.title.localeCompare(b.title) },
+    ],
+    renderItem: (r) => el('div', { class: 'item' }, [
+      el('div', { class: 'item-main' }, [
+        el('div', { class: 'item-title', text: r.title }),
+        el('div', { class: 'item-meta' }, [ r.date ? el('span', { text: fmtDate(r.date) }) : null ]),
+      ]),
+      el('div', { class: 'item-right' }, [ el('div', { class: 'rating-chip', html: `${r.score}<span class="star">★</span>` }) ]),
+    ]),
+    exportName: 'tvtime-show-ratings',
+    exportRow: (r) => ({ title: r.title, score: r.score, rated_at: r.date ? r.date.toISOString() : '' }),
+  });
+}
+
+/* ===================================================================
+   VIEW: Reactions — finish-episode / finish-movie reactions
+   (vote files + episode_emotion) with per-show totals summary.
+   =================================================================== */
+function renderReactions(root) {
+  const model = STATE.model;
+  const all = model.reactions.list;
+
+  // per-show reaction totals summary
+  const perShow = Object.entries(model.emotionPerShow).map(([k, count]) => ({ key: k, count })).sort((a, b) => b.count - a.count);
+  const titleByKey = {};
+  for (const s of model.shows) titleByKey[norm(s.title)] = s.title;
+
+  listView(root, {
+    title: 'Reactions',
+    subtitle: `${fmtInt(all.length)} reactions`,
+    items: all, searchKeys: ['title'],
+    beforeList: (container) => {
+      if (!perShow.length) return;
+      container.append(el('div', { class: 'section-title', text: 'Shows you reacted to most' }));
+      const cards = el('div', { class: 'cards two-col' });
+      for (const r of perShow.slice(0, 8)) {
+        cards.append(el('div', { class: 'item' }, [
+          el('div', { class: 'item-main' }, [ el('div', { class: 'item-title', text: titleByKey[r.key] || r.key }) ]),
+          el('div', { class: 'item-right' }, [ el('span', { class: 'badge accent', html: `<i class="ph ph-heart"></i> ${fmtInt(r.count)}` }) ]),
+        ]));
+      }
+      container.append(cards);
+      container.append(el('div', { class: 'section-title', text: 'Every reaction' }));
+    },
+    stateKey: 'reactions', enrichFull: true,
+    searchText: (r) => r.kind === 'movie' ? `${r.title} ${movieTitle(r.title)}` : r.title,
+    filter: { default: 'all', options: [
+      { id: 'all', label: 'All', test: () => true },
+      { id: 'episode', label: 'Episodes', test: r => r.kind === 'episode' },
+      { id: 'movie', label: 'Movies', test: r => r.kind === 'movie' },
+    ] },
+    enrichShows: (slice) => slice.filter(r => r.kind === 'episode').map(r => ({ seriesId: Enrichment.seriesIdByName[norm(r.title)], title: r.title })),
+    enrichMovies: (slice) => slice.filter(r => r.kind === 'movie').map(r => r.title),
+    sorts: [
+      { id: 'recent', label: 'Most recent', fn: (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0) },
+      { id: 'az', label: 'A → Z', fn: (a, b) => a.title.localeCompare(b.title) },
+      { id: 'kind', label: 'By type', fn: (a, b) => a.kind.localeCompare(b.kind) || a.title.localeCompare(b.title) },
+    ],
+    renderItem: (r) => {
+      const info = r.kind === 'episode' ? Enrichment.epInfo(r.title, null, r.season, r.episode) : null;
+      const epName = info && info.name;
+      const kids = [];
+      // Thumbnail slot for both types; movies get an empty placeholder to stay aligned.
+      if (Enrichment.enabled) {
+        const img = r.kind === 'episode' && info && info.image ? info.image : null;
+        kids.push(el('div', { class: 'item-thumb' }, img ? [el('img', { src: img, loading: 'lazy', alt: '' })] : []));
+      }
+      kids.push(el('div', { class: 'item-main' }, [
+        el('div', { class: 'item-title', text: r.kind === 'movie' ? movieTitle(r.title) : r.title }),
+        el('div', { class: 'item-meta' }, [
+          el('span', { class: 'badge ' + (r.kind === 'movie' ? 'warn' : 'accent'), text: r.kind }),
+          r.kind === 'episode' && (r.season || r.episode) ? el('span', { text: `S${r.season || '?'}·E${r.episode || '?'}${epName ? ' · ' + epName : ''}` }) : null,
+          r.date ? el('span', { text: fmtDate(r.date) }) : null,
+        ]),
+      ]));
+      kids.push(el('div', { class: 'item-right' }, [ r.reactionId != null ? el('span', { class: 'badge' + (FEELING_LABELS[r.reactionId] ? ' accent' : (/^ratings/.test(r.source) && STAR_LABELS[r.reactionId] ? ' warn' : '')), text: reactionChipText(r.reactionId, r.source) }) : null ]));
+      return el('div', { class: 'item' }, kids);
+    },
+    exportName: 'tvtime-reactions',
+    exportRow: (r) => ({ kind: r.kind, title: r.title, season: r.season, episode: r.episode, reaction_id: r.reactionId ?? '', feeling: FEELING_LABELS[r.reactionId] ? FEELING_LABELS[r.reactionId][1] : '', date: r.date ? r.date.toISOString() : '', source: r.source }),
+  });
+}
+
+/* ===================================================================
+   VIEW: Lists
+   =================================================================== */
+function renderLists(root) {
+  const lists = STATE.model.lists;
+  viewHead(root, 'Lists', lists.length ? `${lists.length} lists` : '');
+  if (!lists.length) { root.append(el('div', { class: 'empty', text: 'No lists found.' })); return; }
+
+  for (const l of lists) {
+    const det = el('details', { class: 'list-card' });
+    const cover = l.cover
+      ? el('img', { class: 'list-cover', src: l.cover, loading: 'lazy', alt: '' })
+      : el('div', { class: 'list-cover' });
+    const kindLabel = l.kind === 'movie' ? 'movies' : l.kind === 'series' ? 'shows' : 'items';
+    det.append(el('summary', {}, [
+      cover,
+      el('div', { class: 'list-info' }, [
+        el('div', { class: 'list-name', text: l.name }),
+        el('div', { class: 'list-sub', text: `${fmtInt(l.items.length)} ${kindLabel}` }),
+      ]),
+      el('span', { class: 'badge ' + (l.isPublic ? 'good' : 'dim'), text: l.isPublic ? 'Public' : 'Private' }),
+    ]));
+    const chips = el('div', { class: 'list-items' });
+    for (const it of l.items) {
+      const label = it.title ? (it.type === 'movie' ? movieTitle(it.title) : it.title) : `${it.type || 'item'} ${it.id || it.uuid || '?'}`;
+      chips.append(el('span', { class: 'list-item-chip' + (it.title ? '' : ' unknown') }, [
+        el('i', { class: it.type === 'movie' ? 'ph ph-film-slate' : 'ph ph-television' }), ' ' + label,
+      ]));
+    }
+    det.append(chips);
+    root.append(det);
+  }
+}
+
+/* ===================================================================
+   VIEW: Profile
+   =================================================================== */
+function renderProfile(root) {
+  const p = STATE.model.profile;
+  viewHead(root, 'Profile', 'Account details');
+  const rows = [
+    ['Name', p.name], ['Username', p.username], ['Email', p.email], ['Language', p.language], ['Timezone', p.timezone],
+    ['Member since', fmtDate(p.createdAt)], ['Last opened', fmtDateTime(p.lastOpened)],
+    ['Days active', p.daysActive], ['Weeks active', p.weeksActive], ['Months active', p.monthsActive],
+  ].filter(([, v]) => nonEmpty(v) && v !== '—');
+  const dl = el('dl', { class: 'kv' });
+  for (const [k, v] of rows) { dl.append(el('dt', { text: k }), el('dd', { text: v })); }
+  root.append(dl);
+
+  // extra personal-data key/values
+  const extra = Object.entries(p.personal || {}).filter(([, v]) => nonEmpty(v));
+  if (extra.length) {
+    root.append(el('div', { class: 'section-title', text: 'Personal data' }));
+    const dl2 = el('dl', { class: 'kv' });
+    for (const [k, v] of extra) { dl2.append(el('dt', { text: k }), el('dd', { text: v })); }
+    root.append(dl2);
+  }
+}
+
+/* ===================================================================
+   VIEW: Raw — browse every CSV in the archive as a table
+   =================================================================== */
+function renderRaw(root) {
+  viewHead(root, 'All data', `${Object.keys(STATE.tables).length} CSV files`);
+
+  const names = Object.keys(STATE.tables).sort();
+  const saved = STATE.listState.raw || {};
+  const state = {
+    file: (saved.file && STATE.tables[saved.file]) ? saved.file : names[0],
+    q: saved.q || '', page: saved.page || 0, pageSize: 100,
+    sortCol: saved.sortCol || null, sortDir: saved.sortDir || 1,
+  };
+  const persist = () => { STATE.listState.raw = { file: state.file, q: state.q, page: state.page, sortCol: state.sortCol, sortDir: state.sortDir }; };
+
+  const doExport = (fmt) => {
+    const { rows } = computed();
+    const base = state.file.replace('.csv', '') + '-filtered';
+    if (fmt === 'csv') download(base + '.csv', toCSV(rows), 'text/csv');
+    else download(base + '.json', JSON.stringify(rows, null, 2), 'application/json');
+  };
+  const { search, controls } = buildToolbar(root, { onExport: doExport });
+  search.value = state.q;
+  const picker = el('select', { class: 'raw-picker', title: 'File' });
+  for (const n of names) picker.append(el('option', { value: n, text: `${n}  (${fmtInt(STATE.tables[n].rows.length)} rows)` }));
+  picker.value = state.file;
+  const countPill = el('span', { class: 'count-pill' });
+  controls.append(picker, countPill);
+
+  const tableWrap = el('div', { class: 'table-wrap' });
+  const pager = el('div', { class: 'pager' });
+  root.append(tableWrap, pager);
+
+  function computed() {
+    const tbl = STATE.tables[state.file];
+    let rows = tbl.rows;
+    if (state.q) { const q = norm(state.q); rows = rows.filter(r => tbl.fields.some(f => norm(r[f]).includes(q))); }
+    if (state.sortCol) {
+      rows = [...rows].sort((a, b) => {
+        const av = a[state.sortCol] ?? '', bv = b[state.sortCol] ?? '';
+        const an = parseFloat(av), bn = parseFloat(bv);
+        const cmp = (!isNaN(an) && !isNaN(bn) && av !== '' && bv !== '') ? an - bn : String(av).localeCompare(String(bv));
+        return cmp * state.sortDir;
+      });
+    }
+    return { tbl, rows };
+  }
+  function draw() {
+    const { tbl, rows } = computed();
+    countPill.textContent = rows.length === tbl.rows.length ? `${fmtInt(tbl.rows.length)} rows` : `${fmtInt(rows.length)} of ${fmtInt(tbl.rows.length)} rows`;
+    const pages = Math.max(1, Math.ceil(rows.length / state.pageSize));
+    state.page = Math.min(state.page, pages - 1);
+    const slice = rows.slice(state.page * state.pageSize, (state.page + 1) * state.pageSize);
+
+    const table = el('table', { class: 'data' });
+    const thead = el('thead'); const htr = el('tr');
+    for (const f of tbl.fields) {
+      htr.append(el('th', { text: f + (state.sortCol === f ? (state.sortDir === 1 ? ' ▲' : ' ▼') : ''), onclick: () => { if (state.sortCol === f) state.sortDir *= -1; else { state.sortCol = f; state.sortDir = 1; } draw(); } }));
+    }
+    thead.append(htr); table.append(thead);
+    const tbody = el('tbody');
+    for (const r of slice) {
+      const tr = el('tr');
+      for (const f of tbl.fields) { const v = r[f] ?? ''; tr.append(el('td', { title: v, text: v })); }
+      tbody.append(tr);
+    }
+    table.append(tbody);
+    tableWrap.innerHTML = ''; tableWrap.append(table);
+
+    pager.innerHTML = '';
+    if (pages > 1) pager.append(
+      el('button', { text: '‹ Prev', disabled: state.page === 0 ? '' : false, onclick: () => { state.page--; draw(); } }),
+      el('span', { text: `Page ${state.page + 1} of ${pages}` }),
+      el('button', { text: 'Next ›', disabled: state.page >= pages - 1 ? '' : false, onclick: () => { state.page++; draw(); } }),
+    );
+    persist();
+  }
+  picker.addEventListener('change', () => { state.file = picker.value; state.q = ''; search.value = ''; state.page = 0; state.sortCol = null; state.sortDir = 1; draw(); });
+  search.addEventListener('input', () => { state.q = search.value; state.page = 0; draw(); });
+  draw();
+}
+
+/* ===================================================================
+   Wire up landing screen
+   =================================================================== */
+function initLanding() {
+  try { Enrichment.enabled = localStorage.getItem('tvt.enrich') === '1'; } catch {}
+  try { MovieMeta.enabled = localStorage.getItem('tvt.movies') === '1'; } catch {}
+  const input = $('#fileInput');
+  const dz = $('#dropzone');
+  input.addEventListener('change', () => { if (input.files[0]) loadArchive(input.files[0]); });
+  ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove('drag'); }));
+  dz.addEventListener('drop', (e) => { const f = e.dataTransfer.files[0]; if (f) loadArchive(f); });
+
+  // Boot: check IndexedDB first. If an archive is stored, auto-load it (staying in the
+  // loading state); otherwise reveal the dropzone. This avoids flashing the landing.
+  IDB.get().then(rec => {
+    if (rec && rec.blob) loadArchive(rec.blob, { restoring: true }).then(ok => { if (!ok) IDB.clear(); });
+    else showChooser();
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initLanding);

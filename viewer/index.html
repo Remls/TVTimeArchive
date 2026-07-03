@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#15110e">
+<title>TV Time Archive Viewer</title>
+<meta name="description" content="Browse your TV Time data export locally in your browser.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="apple-touch-icon" href="favicon.svg">
+
+<!-- Social sharing (Open Graph + Twitter) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="TV Time Archive Viewer">
+<meta property="og:url" content="https://tvt.remls.io/">
+<meta property="og:title" content="TV Time Archive Viewer">
+<meta property="og:description" content="Browse your TV Time data export locally in your browser.">
+<meta property="og:image" content="https://tvt.remls.io/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="TV Time Archive Viewer">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="TV Time Archive Viewer">
+<meta name="twitter:description" content="Browse your TV Time data export locally in your browser.">
+<meta name="twitter:image" content="https://tvt.remls.io/og-image.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<link rel="stylesheet" href="styles.css">
+<!-- Client-side only: JSZip reads the export, PapaParse parses the CSVs. No server, no build step. -->
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+
+<!-- ===== Landing / drop screen ===== -->
+<section id="landing" class="landing">
+  <div class="landing-inner">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <h1>TV Time Archive</h1>
+    </div>
+    <p class="tagline">Browse your TV Time data export locally in your browser.</p>
+
+    <!-- The "choose a file" UI is hidden until we've checked for a stored archive,
+         so returning users don't see the dropzone flash before it auto-loads. -->
+    <div id="chooser" hidden>
+      <label id="dropzone" class="dropzone" for="fileInput">
+        <input type="file" id="fileInput" accept=".zip" hidden>
+        <div class="dz-icon"><i class="ph ph-package"></i></div>
+        <div class="dz-title">Drop your <code>.zip</code> here</div>
+        <div class="dz-sub">or tap to choose the TV&nbsp;Time data export</div>
+      </label>
+
+      <p class="get-file">Don’t have your data yet? Request your export from
+        <a href="https://gdpr.tvtime.com/gdpr/self-service" target="_blank" rel="noopener noreferrer">TV&nbsp;Time’s GDPR self-service</a>.</p>
+      <p class="privacy">Everything runs locally in your browser.</p>
+    </div>
+
+    <p id="landingError" class="error" hidden></p>
+    <div id="loadingBar" class="loading">
+      <div class="spinner"></div>
+      <span id="loadingText">Loading…</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Main app ===== -->
+<div id="app" class="app" hidden>
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="brand-dot small"></span>
+      <strong id="appTitle">TV Time Archive</strong>
+    </div>
+    <div class="topbar-right">
+      <input id="globalSearch" class="global-search" type="search" placeholder="Search this view…" hidden>
+      <div id="settingsHost" class="settings"></div>
+    </div>
+    <div id="loadbar" class="loadbar" aria-hidden="true"><div class="loadbar-fill"></div></div>
+  </header>
+  <div id="loadpill" class="loadpill" role="status" hidden></div>
+
+  <main id="viewRoot" class="view-root"></main>
+
+  <nav class="tabbar" id="tabbar"></nav>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
