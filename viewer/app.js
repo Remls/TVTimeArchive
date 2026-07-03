@@ -433,7 +433,7 @@ async function loadArchive(file, opts = {}) {
   $('#landing').hidden = true;
   $('#app').hidden = false;
   buildChrome();
-  renderView('overview');
+  navigate(hashToState(), true);   // honor a deep-link hash; establish the history base
   return true;
 }
 
@@ -958,7 +958,7 @@ function buildChrome() {
     bar.append(el('button', {
       class: 'tab' + (v.id === STATE.view ? ' active' : ''),
       'data-view': v.id,
-      onclick: () => renderView(v.id),
+      onclick: () => navigate({ view: v.id }),
     }, [el('i', { class: 'ph ' + v.icon + ' tab-ico' }), el('span', { text: v.label })]));
   }
   buildSettingsMenu();
@@ -967,6 +967,7 @@ function buildChrome() {
 function resetApp() {
   IDB.clear();   // "Change source .zip file" also forgets the stored archive
   STATE.tables = {}; STATE.model = null; STATE.listState = {}; STATE.pendingScroll = null;
+  history.replaceState(null, '', location.pathname + location.search);   // drop the #/… hash
   $('#app').hidden = true; $('#landing').hidden = false;
   $('#fileInput').value = ''; $('#landingError').hidden = true;
   showChooser();
@@ -986,7 +987,7 @@ function buildSettingsMenu() {
     Enrichment.enabled = !Enrichment.enabled;
     try { localStorage.setItem('tvt.enrich', Enrichment.enabled ? '1' : '0'); } catch {}
     sw.classList.toggle('on', Enrichment.enabled);
-    renderView(STATE.view);
+    applyState(history.state || hashToState());
   });
   const note = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-warning-circle' }), el('span', { text: 'This data is fetched from the TVMaze API.' })]);
 
@@ -996,7 +997,7 @@ function buildSettingsMenu() {
     const n = Enrichment.clearCache();
     clearItem.firstChild.textContent = n ? `Cleared ${n} ✓` : 'Nothing cached';
     setTimeout(() => { clearItem.firstChild.textContent = 'Clear show metadata cache'; }, 1500);
-    renderView(STATE.view);
+    applyState(history.state || hashToState());
   });
 
   // Movie titles via Wikidata (separate opt-in + cache)
@@ -1007,7 +1008,7 @@ function buildSettingsMenu() {
     MovieMeta.enabled = !MovieMeta.enabled;
     try { localStorage.setItem('tvt.movies', MovieMeta.enabled ? '1' : '0'); } catch {}
     msw.classList.toggle('on', MovieMeta.enabled);
-    renderView(STATE.view);
+    applyState(history.state || hashToState());
   });
   const movieNote = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-warning-circle' }), el('span', { text: 'This data is fetched from the Wikidata API, and may not be accurate.' })]);
   const movieClear = el('button', { class: 'menu-item' }, [el('span', { text: 'Clear movie title cache' })]);
@@ -1016,7 +1017,7 @@ function buildSettingsMenu() {
     const n = MovieMeta.clearCache();
     movieClear.firstChild.textContent = n ? `Cleared ${n} ✓` : 'Nothing cached';
     setTimeout(() => { movieClear.firstChild.textContent = 'Clear movie title cache'; }, 1500);
-    renderView(STATE.view);
+    applyState(history.state || hashToState());
   });
 
   const changeItem = el('button', { class: 'menu-item' }, [el('span', { text: 'Change source .zip file' })]);
@@ -1045,6 +1046,35 @@ function renderView(id) {
   root.innerHTML = '';
   window.scrollTo(0, 0);
   (VIEWS.find(v => v.id === id) || VIEWS[0]).render(root);
+}
+
+/* ---- Browser-history + URL navigation ----
+   The current view is reflected in the URL hash (#/shows, #/shows/<slug>) so it's
+   shareable and survives refresh, and the device Back button works in-app.
+   A nav state is { view } for a tab, or { view:'shows', detail:<slug> } for a detail. */
+const slugify = (t) => norm(t).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const isView = (id) => VIEWS.some(v => v.id === id);
+
+function stateToHash(s) {
+  if (s.view === 'shows' && s.detail) return `#/shows/${s.detail}`;
+  return `#/${s.view || 'overview'}`;
+}
+function hashToState() {
+  const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+  if (parts[0] === 'shows' && parts[1]) return { view: 'shows', detail: decodeURIComponent(parts[1]) };
+  return { view: isView(parts[0]) ? parts[0] : 'overview' };
+}
+function applyState(state) {
+  const s = state || hashToState();
+  if (s.view === 'shows' && s.detail) {
+    const show = STATE.model.shows.find(sh => slugify(sh.title) === s.detail);
+    if (show) { openShowDetail(show); return; }
+  }
+  renderView(isView(s.view) ? s.view : 'overview');
+}
+function navigate(state, replace) {
+  history[replace ? 'replaceState' : 'pushState'](state, '', stateToHash(state));
+  applyState(state);
 }
 
 function viewHead(root, title, subtitle) {
@@ -1332,7 +1362,7 @@ function renderShows(root) {
         s.rating ? el('div', { class: 'rating-chip', html: `${s.rating}<span class="star">★</span>` }) : null,
         el('div', { html: '' }), statusBadge(s.status),
       ]));
-      return el('div', { class: 'item clickable', title: 'View episode progress', onclick: () => openShowDetail(s) }, kids);
+      return el('div', { class: 'item clickable', title: 'View episode progress', onclick: () => navigate({ view: 'shows', detail: slugify(s.title) }) }, kids);
     },
     exportName: 'tvtime-shows',
     exportRow: (s) => ({ title: s.title, status: s.status || '', episodes_watched: s.epWatched, rewatches: s.rewatches, rating: s.rating ?? '', emotion_count: s.emotionCount, seen_episodes: s.seenCount, followed_at: s.followedAt ? s.followedAt.toISOString() : '', last_watched: s.lastWatched ? s.lastWatched.toISOString() : '', sources: (s.sources || []).join('|') }),
@@ -1354,7 +1384,7 @@ function openShowDetail(show) {
   window.scrollTo(0, 0);
 
   root.append(el('div', { class: 'backbar' }, [
-    el('button', { class: 'back-btn', text: '‹ Shows', onclick: () => renderView('shows') }),
+    el('button', { class: 'back-btn', text: '‹ Shows', onclick: () => history.back() }),
   ]));
   const poster = el('div', { class: 'detail-poster' });
   const setPoster = (url) => { poster.innerHTML = ''; if (url) poster.append(el('img', { src: url, loading: 'lazy', alt: '' })); };
@@ -1872,6 +1902,9 @@ function initLanding() {
   ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add('drag'); }));
   ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove('drag'); }));
   dz.addEventListener('drop', (e) => { const f = e.dataTransfer.files[0]; if (f) loadArchive(f); });
+
+  // Device Back button / hash change → replay the nav state (only once an archive is loaded).
+  window.addEventListener('popstate', (e) => { if (STATE.model) applyState(e.state || hashToState()); });
 
   // Boot: check IndexedDB first. If an archive is stored, auto-load it (staying in the
   // loading state); otherwise reveal the dropzone. This avoids flashing the landing.
