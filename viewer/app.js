@@ -949,7 +949,7 @@ const VIEWS = [
 function buildChrome() {
   // desktop brand rail (inserted once)
   if (!$('.brand-rail')) {
-    const rail = el('div', { class: 'brand-rail' }, [el('span', { class: 'brand-dot small' }), 'TV Time Archive']);
+    const rail = el('div', { class: 'brand-rail' }, [el('img', { class: 'brand-mark small', src: 'favicon.svg', alt: '', width: 22, height: 22 }), 'TV Time Archive']);
     $('#app').prepend(rail);
   }
   const bar = $('#tabbar');

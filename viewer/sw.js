@@ -1,6 +1,6 @@
 /* TV Time Archive Viewer — service worker.
    Bump VERSION on each deploy to invalidate old caches. */
-const VERSION = 'v1';
+const VERSION = '__BUILD__';   // stamped with the git commit SHA by Netlify at deploy (see netlify.toml)
 const SHELL = 'shell-' + VERSION;
 const RUNTIME = 'runtime-' + VERSION;
 
