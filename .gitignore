@@ -1,0 +1,11 @@
+# Your TV Time export — keep personal data out of git
+gdpr-data/
+gdpr-data.zip
+*-export.zip
+
+# Comment-image backup produced by backup-images.sh
+image-backup/
+tvt-image-backup.zip
+
+# OS / editor cruft
+.DS_Store

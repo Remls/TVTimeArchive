@@ -1,14 +1,46 @@
 # TV Time Archive Viewer
 
-A fully client-side web app that reads a TV Time GDPR data export (a `.zip` of CSV
-tables) and displays your movie & TV data in a browsable, exportable format. All
-parsing happens in your browser; the archive is never uploaded.
+A client-side web app that reads your [TV Time](https://www.tvtime.com/) GDPR data
+export — a `.zip` of CSV tables — and turns it into a browsable, searchable archive
+of the shows and movies you've watched, rated, and reacted to.
 
-The app is in [`viewer/`](viewer/).
+Everything runs in your browser. The export is parsed locally and never uploaded;
+it's kept in the browser's own storage (IndexedDB) so it reloads automatically on
+your next visit.
 
-## Run locally
+Not affiliated with TV Time / Whip Media.
 
-The app pulls a few libraries from CDNs, so serve it over HTTP rather than opening
+## Disclaimer
+
+This is a **reader** for the data backup TV Time gives you — *not* a replacement for
+it. Some of it is best-effort guesswork (how reactions are encoded, how the data
+fits together across many tables), and some things simply can't be recovered from
+the export they provide — your friends list, for example, or your posted images and
+GIFs once the servers are taken offline.
+
+I have no intention of running a server to hold this data centrally or to fill in
+the gaps by crowdsourcing — managing other people's data is a can of worms I want no
+part in. The app is provided as-is, and whether anything more gets added to it is
+entirely at my discretion. You're of course free to
+[fork it](https://github.com/Remls/TVTimeArchive/fork).
+
+If you're looking for a replacement rather than an archive: I moved to
+[Trakt](https://trakt.tv) (note that it has no social features); other options include [Sofa Time](https://www.sofatime.app/)
+and [Refract](https://getrefract.app/).
+
+## Get your export
+
+Request your data from [TV Time's GDPR self-service](https://gdpr.tvtime.com/gdpr/self-service).
+You'll receive a `.zip` by email. That file is all this app needs.
+
+The export contains personal information (name, email, IP history, and more). Treat
+it as private — don't commit it to a public repository or host it anywhere.
+
+## Use it
+
+Either open the hosted app at https://tvt.remls.io and drop your `.zip` on the page, or run it yourself.
+
+The app loads a few libraries from a CDN, so serve it over HTTP rather than opening
 the file directly:
 
 ```bash
@@ -17,56 +49,87 @@ python3 -m http.server 8777
 # open http://localhost:8777/
 ```
 
-Drop your export `.zip` on the page (or tap to choose it). It's remembered in the
-browser (IndexedDB) and reloads automatically next time; "Change source .zip file"
-in the ⚙ menu removes it.
-
-Get your export from [TV Time's GDPR self-service](https://gdpr.tvtime.com/gdpr/self-service).
-
-## Deploy
-
-Static site, no build step. `netlify.toml` publishes the `viewer/` folder.
-The repo root holds your own `gdpr-data.zip` / `gdpr-data/` — those are not part of
-the published folder, and are git-ignored locally. Don't commit them to a public repo.
+Drop the export `.zip` on the page (or tap to choose it). It's remembered between
+visits; "Change source .zip file" in the ⚙ menu forgets it and clears local storage.
 
 ## Views
 
-Mobile-first, responsive to desktop (bottom tab bar becomes a left sidebar on wide screens).
-
-| View | What it is | Source CSV(s) |
-|------|------------|---------------|
-| **Overview** | Headline stats & recent activity | `tracking-prod-records-v2` (tracking-stats row) + counts |
-| **Stats** | Biggest marathons, episodes/hours/movies per month | `stats-prod-cache` |
-| **Shows** | Followed / watched / archived shows, episode counts, ratings | `followed_tv_show`, `tracking-prod-records-v2`, `tv_show_rate`, `tv_show_user_emotion_count`, `show_addiction_score`, `seen_episode_source` |
-| **Movies** | Watched / watchlisted / reacted movies, with watch dates | `tracking-prod-records` (entity_type=movie) |
-| **History** | Chronological watch timeline (episodes + movies) | `tracking-prod-records-v2`, `tracking-prod-records` |
-| **Ratings** | 1–5 star ratings you gave shows | `tv_show_rate` |
-| **Reactions** | Finish-episode / finish-movie reactions | `ratings-*` & `emotions-*` votes, `episode_emotion` |
-| **Lists** | Custom lists & collections (items resolved to titles, with cover art) | `lists-prod-lists` (+ id/uuid → title lookups) |
-| **Profile** | Account details | `user`, `user_personal_data`, `routing-prod-users` |
-| **All data** | Browse / sort / filter / export any CSV in the archive | every `.csv` |
+| View | What it shows |
+|------|---------------|
+| **Overview** | Headline totals and recent activity |
+| **Stats** | Biggest marathons; episodes, hours, and movies per month |
+| **Shows** | Followed / watched / archived shows, episode progress, ratings |
+| **Movies** | Watched / watchlisted / reacted movies, with watch dates |
+| **History** | A chronological watch timeline of episodes and movies |
+| **Ratings** | The 1–5 star ratings you gave shows |
+| **Reactions** | Finish-episode / finish-movie reactions |
+| **Lists** | Your custom lists and collections, resolved to titles with cover art |
+| **Comments** | Every comment you posted, with attached images, likes, and reply threads |
+| **Profile** | Account details |
+| **All data** | Browse, sort, filter, and export any CSV table in the archive |
 
 Curated views support search, sort, filter, and CSV/JSON export.
 
-## Show / movie metadata (optional)
+## Backing up your comment images
 
-Off by default; toggle in the ⚙ Settings menu:
+The **Comments** view shows the images you attached to comments. While TV Time is
+online they load straight from its servers — nothing extra needed. But those images
+live on TV Time's CDN, so when the servers go offline the links break.
 
-- **Auto-load show metadata** — episode titles, posters, and thumbnails from the
-  keyless [TVmaze](https://www.tvmaze.com/api) API (matched by TheTVDB id). Show
-  detail views also list per-episode watch dates.
-- **Auto-load movie titles** — English titles for localized movie names via
-  [Wikidata](https://www.wikidata.org) (no posters exist there for films).
+The browser can *display* those images but can't *read* their bytes to save them
+(the image host sends no CORS headers), so the backup is made with a small script
+rather than a button in the app:
 
-Both cache results locally and send only a show/movie name to the respective API
-when enabled.
+1. Unzip your export somewhere (so `meme.csv` and friends sit in a folder).
+2. Run the script against it while TV Time is still up:
+
+   ```bash
+   ./backup-images.sh path/to/your/export
+   # writes tvt-image-backup.zip
+   ```
+
+   It downloads every comment image and packs them into `tvt-image-backup.zip`.
+   Memes are saved in both variants — a clean one and the watermarked "marked" one;
+   the app shows the clean version when it can and falls back to the marked one.
+   Re-running is safe and resumes where it left off.
+3. In the app, open **⚙ → Import image backup** (or the **Import backup** button at
+   the top of the Comments view) and choose that zip.
+
+Imported images are stored in your browser and shown from the local copy, so your
+comment images keep working after TV Time is gone. Missing images fall back to a
+placeholder.
+
+## Optional metadata
+
+Off by default; toggle in the ⚙ Settings menu. Both cache results locally and send
+only a show or movie name to the API when enabled:
+
+- **Show metadata** — episode titles, posters, and thumbnails from the keyless
+  [TVmaze](https://www.tvmaze.com/api) API (matched by TheTVDB id).
+- **Movie titles** — English titles for localized names via
+  [Wikidata](https://www.wikidata.org).
 
 ## Notes on the data
 
-- **Ratings vs reactions.** TV Time's `ratings-*`/`emotions-*` vote files encode a
+- **Ratings vs reactions.** TV Time's `ratings-*` / `emotions-*` vote files encode a
   reaction id in the `vote_key` (`<entityId>-<userId>-<reactionId>`), not a star
   score. The only genuine 1–5 star rating is `tv_show_rate.csv`, shown under
-  **Ratings**; the vote files are shown under **Reactions** (the 12 "how did you
-  feel?" feelings, ids 28–39, are decoded).
-- The social parts of the export (comments, likes, followers, notifications, memes)
-  are skipped in curated views but remain browsable under **All data**.
+  **Ratings**; the vote files drive **Reactions** (the 12 "how did you feel?"
+  feelings, ids 28–39, are decoded).
+- **Comments.** Your comments are gathered from several tables (`episode_comment`,
+  `show_comment`, `profile_comment`, and the newer `comments-prod-comments`), with
+  images joined from `meme.csv`. Replies keep their parent's text only when the
+  parent is also one of your comments — other people's comments aren't in the export.
+- The remaining social parts (likes given, friends, notifications) have no dedicated
+  view — friends, in particular, are only opaque numeric ids in the export — but
+  every table stays browsable under **All data**.
+
+## Run your own copy
+
+Static site, no build step. `netlify.toml` publishes the `viewer/` folder as-is;
+any static host works. Keep your own export out of the published folder and out of
+git.
+
+## License
+
+[MIT](LICENSE).
