@@ -653,6 +653,9 @@ function buildModel(tables) {
      badges, airing reminders) from notifications-prod-notifications.csv ---- */
   m.notifications = buildNotifications();
 
+  /* ---- Badges: user_badge.csv, grouped by badge type with art from notifications ---- */
+  m.badges = buildBadges();
+
   /* ---- Stats: stats-prod-cache.csv (marathons, per-month charts) ---- */
   m.stats = buildStats();
 
@@ -1150,6 +1153,50 @@ function buildNotifications() {
   return { list, byCat };
 }
 
+/* ---------------- Badges ----------------
+   user_badge.csv — 528 earned badges, but most are the same badge unlocked per show
+   (e.g. "quick-watcher-3" for many series). We group by badge *type* (the slug minus
+   the leading show id) with a count + date range. Art/name for the ~119 that appeared
+   in a badge-unlocked notification; a humanized slug for the rest. */
+function buildBadges() {
+  const rows = T('user_badge.csv');
+  // Badge art keyed by full badge_id, from badge-unlocked notifications.
+  const art = {};
+  for (const r of T('notifications-prod-notifications.csv')) {
+    if (r.type !== 'badge-unlocked') continue;
+    const m = (r.url || '').match(/badge_id=([^&]+)/);
+    if (m && (r.image || '').trim()) art[m[1]] = { image: r.image.trim(), key: 'badges/' + m[1] };
+  }
+  // TV Time's internal show id (the badge_id prefix) -> show name.
+  const showName = {};
+  for (const file of ['followed_tv_show.csv', 'tv_show_rate.csv', 'show_comment.csv']) {
+    for (const r of T(file)) {
+      const id = (r.tv_show_id || '').trim(), nm = (r.tv_show_name || '').trim();
+      if (id && nm && !showName[id]) showName[id] = nm;
+    }
+  }
+  const typeKey = (bid) => bid.replace(/^\d+-/, '');                 // drop the show-id prefix
+  const humanize = (tk) => tk.replace(/-bd$/, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const groups = {};
+  for (const r of rows) {
+    const bid = (r.badge_id || '').trim(); if (!bid) continue;
+    const tk = typeKey(bid);
+    const g = groups[tk] || (groups[tk] = { key: tk, name: humanize(tk), count: 0, first: null, last: null, art: null, shows: [], _seen: new Set() });
+    g.count++;
+    const d = parseDate(r.created_at);
+    if (d) { if (!g.first || d < g.first) g.first = d; if (!g.last || d > g.last) g.last = d; }
+    if (!g.art && art[bid]) g.art = art[bid];
+    const pm = bid.match(/^(\d+)-/);   // per-show badge -> record the show
+    if (pm && !g._seen.has(pm[1])) { g._seen.add(pm[1]); g.shows.push({ id: pm[1], name: showName[pm[1]] || null, date: d }); }
+  }
+  const list = Object.values(groups).map(g => {
+    delete g._seen;
+    g.shows.sort((a, b) => (a.name || 'zzz').localeCompare(b.name || 'zzz'));
+    return g;
+  }).sort((a, b) => b.count - a.count || (b.last?.getTime() || 0) - (a.last?.getTime() || 0));
+  return { list, total: rows.length };
+}
+
 /* ---------------- Stats ----------------
    stats-prod-cache.csv holds Go-serialized `map[...]` blobs of precomputed stats:
    biggest marathons, and episode/movie counts + hours per month. */
@@ -1241,6 +1288,7 @@ const VIEWS = [
   { id: 'lists',    label: 'Lists',    icon: 'ph-list-bullets', render: renderLists },
   { id: 'comments', label: 'Comments', icon: 'ph-chat-circle-text', render: renderComments },
   { id: 'notifications', label: 'Notifications', icon: 'ph-bell', render: renderNotifications },
+  { id: 'badges',   label: 'Badges',   icon: 'ph-medal', render: renderBadges },
   { id: 'profile',  label: 'Profile',  icon: 'ph-user', render: renderProfile },
   { id: 'raw',      label: 'All data', icon: 'ph-database', render: renderRaw },
 ];
@@ -2383,6 +2431,64 @@ function renderNotifications(root) {
     },
     exportName: 'tvtime-notifications',
     exportRow: (n) => ({ date: n.date ? n.date.toISOString() : '', type: n.type, category: n.cat, text: n.text }),
+  });
+}
+
+/* ===================================================================
+   VIEW: Badges — earned badges grouped by type
+   =================================================================== */
+function renderBadges(root) {
+  const { list, total } = STATE.model.badges;
+  if (!list.length) {
+    viewHead(root, 'Badges', '');
+    root.append(el('div', { class: 'empty', text: 'No badges in this archive.' }));
+    return;
+  }
+  listView(root, {
+    title: 'Badges', subtitle: `${fmtInt(total)} earned · ${fmtInt(list.length)} types`,
+    items: list, stateKey: 'badges', twoCol: true,
+    searchText: (g) => g.name,
+    sorts: [
+      { id: 'count', label: 'Most earned', fn: (a, b) => b.count - a.count || (b.last?.getTime() || 0) - (a.last?.getTime() || 0) },
+      { id: 'recent', label: 'Recently earned', fn: (a, b) => (b.last?.getTime() || 0) - (a.last?.getTime() || 0) },
+      { id: 'az', label: 'A → Z', fn: (a, b) => a.name.localeCompare(b.name) },
+    ],
+    renderItem: (g) => {
+      const art = g.art
+        ? el('div', { class: 'badge-art' }, [resilientImg(g.art.key, g.art.image, { alt: '' })])
+        : el('div', { class: 'badge-art empty' }, [el('i', { class: 'ph ph-seal-check' })]);
+      const head = [
+        art,
+        el('div', { class: 'item-main' }, [
+          el('div', { class: 'item-title', text: g.name }),
+          el('div', { class: 'item-meta' }, [
+            g.last ? el('span', { text: `last ${fmtDate(g.last)}` }) : null,
+            g.count > 1 && g.first ? el('span', { text: `since ${fmtDate(g.first)}` }) : null,
+          ]),
+        ]),
+        el('div', { class: 'item-right' }, [g.count > 1 ? el('div', { class: 'rating-chip', text: `×${fmtInt(g.count)}` }) : null]),
+      ];
+      // No per-show data (one-off account badges) -> a plain card.
+      if (!g.shows.length) return el('div', { class: 'item' }, head);
+
+      // Per-show badge -> expandable card listing the shows it was earned for.
+      const det = el('details', { class: 'badge-card' });
+      det.append(el('summary', {}, [...head, el('i', { class: 'ph ph-caret-down badge-caret' })]));
+      const chips = el('div', { class: 'badge-shows' });
+      for (const s of g.shows) {
+        const label = s.name || `Show #${s.id}`;
+        const slug = s.name ? knownShowSlug(s.name) : null;
+        const chip = el('span', { class: 'list-item-chip' + (s.name ? '' : ' unknown') + (slug ? ' clickable' : '') }, [
+          el('i', { class: 'ph ph-television' }), ' ' + label,
+        ]);
+        if (slug) chip.addEventListener('click', () => navigate({ view: 'shows', detail: slug }));
+        chips.append(chip);
+      }
+      det.append(chips);
+      return det;
+    },
+    exportName: 'tvtime-badges',
+    exportRow: (g) => ({ badge: g.name, type: g.key, count: g.count, first_earned: g.first ? g.first.toISOString() : '', last_earned: g.last ? g.last.toISOString() : '', shows: g.shows.map(s => s.name || `#${s.id}`).join(' | ') }),
   });
 }
 
