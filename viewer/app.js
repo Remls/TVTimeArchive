@@ -244,6 +244,33 @@ function avatarEl(url, name, userId, cls) {
   return wrap;
 }
 
+// A plain <img> that tries a local backup (by key) then a live URL, then a placeholder.
+// Same local-then-live rule as everything else; used for badge art, posters, etc.
+function resilientImg(backupKey, liveUrl, opts = {}) {
+  const local = backupKey ? ImageBackup.urlFor(backupKey) : null;
+  const url = (liveUrl || '').trim();
+  const img = el('img', { src: local || url || BROKEN_IMG, loading: 'lazy', alt: opts.alt || '', class: opts.class || '' });
+  if (!local) {
+    if (!url) img.classList.add('broken');
+    else img.addEventListener('error', () => { if (img.src !== BROKEN_IMG) { img.src = BROKEN_IMG; img.classList.add('broken'); } });
+  }
+  return img;
+}
+
+// Resolve a notification's image to a { key, url } — the backup key (folder-namespaced)
+// and the live URL. The task-4 backup script mirrors this so local copies line up.
+function notifImageRef(r) {
+  const url = (r.image || '').trim();
+  if (!url) return null;
+  const av = url.match(/\/user\/(\d+)\/profile_picture/);
+  if (av) return { key: 'avatars/' + av[1], url, kind: 'avatar' };
+  if (r.type === 'badge-unlocked') {
+    const b = (r.url || '').match(/badge_id=([^&]+)/);
+    return { key: b ? 'badges/' + b[1] : null, url, kind: 'badge' };
+  }
+  return { key: null, url, kind: 'other' };   // show posters etc. — live-only for now
+}
+
 // A sized image box (poster / thumbnail / cover) that opens full-size on click.
 // `cls` provides the size/frame; with no src it's an empty placeholder of that shape.
 function zoomImg(cls, src, alt) {
@@ -621,6 +648,10 @@ function buildModel(tables) {
   /* ---- Comments: your posts across episode/show/movie/profile comment tables,
      with attached images (meme.csv) and reply threading where recoverable ---- */
   m.comments = buildComments(m.shows);
+
+  /* ---- Notifications: read-only activity feed (likes, replies, mentions, follows,
+     badges, airing reminders) from notifications-prod-notifications.csv ---- */
+  m.notifications = buildNotifications();
 
   /* ---- Stats: stats-prod-cache.csv (marathons, per-month charts) ---- */
   m.stats = buildStats();
@@ -1082,6 +1113,43 @@ function buildComments(shows) {
   return { list, withImages, imageCount };
 }
 
+/* ---------------- Notifications ----------------
+   notifications-prod-notifications.csv — your read-only activity feed: who liked /
+   replied to / mentioned / requested to follow you, badges you unlocked, and airing
+   reminders. The `text` is already display-ready; sender avatars / badge art / posters
+   come from the `image` field (backed up per notifImageRef). */
+const NOTIF_CAT = {
+  'episode-comment-liked': 'like', 'episode-reply-liked': 'like', 'movie-comment-liked': 'like',
+  'show-comment-liked': 'like', 'show-reply-liked': 'like',
+  'replied-to-comment': 'reply', 'episode-commented': 'reply',
+  'mentioned-in-comment': 'mention',
+  'follow-requested': 'follow',
+  'badge-unlocked': 'badge',
+  'episode-will-air': 'airing',
+};
+const NOTIF_CAT_LABEL = { like: 'Like', reply: 'Reply', mention: 'Mention', follow: 'Follow', badge: 'Badge', airing: 'Airing', other: 'Other' };
+
+function buildNotifications() {
+  const list = [];
+  for (const r of T('notifications-prod-notifications.csv')) {
+    const type = (r.type || '').trim();
+    const cat = NOTIF_CAT[type] || 'other';
+    const isBadge = type === 'badge-unlocked';
+    const badgeName = (r.badge_name || '').trim();
+    const text = isBadge ? (badgeName ? `Unlocked “${badgeName}”` : 'Unlocked a badge') : (r.text || '').trim();
+    const imgRef = notifImageRef(r);
+    if (!text && !imgRef) continue;
+    // `time` is a ms epoch on every row; `date` (ISO) only on some.
+    const date = (r.time || '').trim() ? new Date(+r.time) : parseDate(r.date);
+    const senderId = imgRef && imgRef.kind === 'avatar' ? imgRef.key.slice('avatars/'.length) : null;
+    list.push({ type, cat, text, date, img: imgRef, senderId, isBadge });
+  }
+  list.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+  const byCat = {};
+  for (const n of list) byCat[n.cat] = (byCat[n.cat] || 0) + 1;
+  return { list, byCat };
+}
+
 /* ---------------- Stats ----------------
    stats-prod-cache.csv holds Go-serialized `map[...]` blobs of precomputed stats:
    biggest marathons, and episode/movie counts + hours per month. */
@@ -1172,6 +1240,7 @@ const VIEWS = [
   { id: 'reactions', label: 'Reactions', icon: 'ph-heart', render: renderReactions },
   { id: 'lists',    label: 'Lists',    icon: 'ph-list-bullets', render: renderLists },
   { id: 'comments', label: 'Comments', icon: 'ph-chat-circle-text', render: renderComments },
+  { id: 'notifications', label: 'Notifications', icon: 'ph-bell', render: renderNotifications },
   { id: 'profile',  label: 'Profile',  icon: 'ph-user', render: renderProfile },
   { id: 'raw',      label: 'All data', icon: 'ph-database', render: renderRaw },
 ];
@@ -2262,6 +2331,59 @@ function commentBackupBanner() {
   }
   wrap.append(status, btn);
   return wrap;
+}
+
+/* ===================================================================
+   VIEW: Activity — read-only notifications feed
+   =================================================================== */
+const NOTIF_BADGE_CLASS = { follow: 'accent', mention: 'accent', badge: 'warn', airing: 'good' };
+
+function renderNotifications(root) {
+  const { list } = STATE.model.notifications;
+  if (!list.length) {
+    viewHead(root, 'Notifications', '');
+    root.append(el('div', { class: 'empty', text: 'No notifications in this archive.' }));
+    return;
+  }
+  listView(root, {
+    title: 'Notifications', subtitle: `${fmtInt(list.length)} notifications`,
+    items: list, stateKey: 'notifications',
+    searchText: (n) => n.text,
+    filter: { default: 'all', options: [
+      { id: 'all', label: 'All', test: () => true },
+      { id: 'like', label: 'Likes', test: n => n.cat === 'like' },
+      { id: 'reply', label: 'Replies', test: n => n.cat === 'reply' },
+      { id: 'mention', label: 'Mentions', test: n => n.cat === 'mention' },
+      { id: 'follow', label: 'Follows', test: n => n.cat === 'follow' },
+      { id: 'badge', label: 'Badges', test: n => n.cat === 'badge' },
+      { id: 'airing', label: 'Airing', test: n => n.cat === 'airing' },
+    ] },
+    sorts: [
+      { id: 'recent', label: 'Newest first', fn: (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0) },
+      { id: 'oldest', label: 'Oldest first', fn: (a, b) => (a.date?.getTime() || 0) - (b.date?.getTime() || 0) },
+    ],
+    renderItem: (n) => {
+      const ref = n.img;
+      const kids = [];
+      if (ref && ref.kind === 'avatar') {
+        kids.push(avatarEl(ref.url, (n.text || '').split(/\s+/)[0], n.senderId, 'md'));
+      } else if (ref) {
+        kids.push(el('div', { class: 'notif-thumb' }, [resilientImg(ref.key, ref.url, { alt: '' })]));
+      } else {
+        kids.push(el('div', { class: 'notif-thumb empty' }));
+      }
+      kids.push(el('div', { class: 'item-main' }, [
+        el('div', { class: 'notif-text', text: n.text || '—' }),
+        el('div', { class: 'item-meta' }, [n.date ? el('span', { text: fmtDate(n.date) }) : null]),
+      ]));
+      kids.push(el('div', { class: 'item-right' }, [
+        el('span', { class: 'badge ' + (NOTIF_BADGE_CLASS[n.cat] || ''), text: NOTIF_CAT_LABEL[n.cat] || n.cat }),
+      ]));
+      return el('div', { class: 'item notif' }, kids);
+    },
+    exportName: 'tvtime-notifications',
+    exportRow: (n) => ({ date: n.date ? n.date.toISOString() : '', type: n.type, category: n.cat, text: n.text }),
+  });
 }
 
 /* ===================================================================
