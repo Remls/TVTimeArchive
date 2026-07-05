@@ -272,13 +272,14 @@ function notifImageRef(r) {
 }
 
 // A sized image box (poster / thumbnail / cover) that opens full-size on click.
-// `cls` provides the size/frame; with no src it's an empty placeholder of that shape.
-function zoomImg(cls, src, alt) {
+// `cls` sizes the frame; `src` is the thumbnail; `fullSrc` (optional) is the higher-res
+// image shown in the lightbox. With no src it's an empty placeholder of that shape.
+function zoomImg(cls, src, alt, fullSrc) {
   if (!src) return el('div', { class: cls });
   const img = el('img', { src, loading: 'lazy', alt: alt || '' });
   return el('button', {
     class: cls + ' img-zoom', title: 'View image',
-    onclick: (e) => { e.stopPropagation(); openLightbox(img.currentSrc || img.src); },
+    onclick: (e) => { e.stopPropagation(); openLightbox(fullSrc || img.currentSrc || img.src); },
   }, [img]);
 }
 
@@ -346,7 +347,8 @@ const Enrichment = {
     const v = this.getCached(this.resolveKey(title, seriesId));
     if (!v) return null;
     const k = `${season}|${episode}`;
-    return { name: (v.e && v.e[k]) || null, image: (v.i && v.i[k]) || null };
+    const image = (v.i && v.i[k]) || null;
+    return { name: (v.e && v.e[k]) || null, image, imageFull: (v.iO && v.iO[k]) || image };
   },
   titleFor(ev) { const i = this.epInfo(ev.title, ev.seriesId, ev.season, ev.episode); return i && i.name; },
   imageFor(ev) { const i = this.epInfo(ev.title, ev.seriesId, ev.season, ev.episode); return i && i.image; },
@@ -354,6 +356,11 @@ const Enrichment = {
     if (!this.enabled) return null;
     const v = this.getCached(this.resolveKey(title, seriesId));
     return (v && v.img) || null;
+  },
+  posterFullFor(title, seriesId) {
+    if (!this.enabled) return null;
+    const v = this.getCached(this.resolveKey(title, seriesId));
+    return (v && (v.imgO || v.img)) || null;
   },
 
   // Does a cache entry already satisfy this need? (full needs episodes, light needs only the show/poster)
@@ -376,17 +383,19 @@ const Enrichment = {
       try { const r = await fetch(`https://api.tvmaze.com/singlesearch/shows?q=${encodeURIComponent(title)}`); if (r.ok) show = await r.json(); } catch {}
     }
     if (!show || !show.id) { this.store(key, { e: {}, f: true, full: true }); return; }
-    const img = show.image ? (show.image.medium || show.image.original || null) : null;  // poster comes free
-    if (!full) { this.store(key, { img, n: show.name }); return; }   // light: poster only
+    // Keep both sizes: medium for thumbnails, original (full-res) for zoom.
+    const img = show.image ? (show.image.medium || show.image.original || null) : null;   // poster comes free
+    const imgO = show.image ? (show.image.original || show.image.medium || null) : null;
+    if (!full) { this.store(key, { img, imgO, n: show.name }); return; }   // light: poster only
     let eps = [];
     try { const r = await fetch(`https://api.tvmaze.com/shows/${show.id}/episodes`); if (r.ok) eps = await r.json(); } catch {}
-    const e = {}, i = {};   // titles + episode thumbnails, keyed by "season|number"
+    const e = {}, i = {}, iO = {};   // titles + episode thumbnails (medium + original), keyed by "season|number"
     for (const ep of eps) {
       const kk = `${ep.season}|${ep.number}`;
       e[kk] = ep.name;
-      if (ep.image) i[kk] = ep.image.medium || ep.image.original || null;
+      if (ep.image) { i[kk] = ep.image.medium || ep.image.original || null; iO[kk] = ep.image.original || ep.image.medium || null; }
     }
-    this.store(key, { e, i, img, n: show.name, full: true });
+    this.store(key, { e, i, iO, img, imgO, n: show.name, full: true });
   },
 
   forget(key) { this.mem.delete(key); this.inflight.delete(key); try { localStorage.removeItem(this.lsKey(key)); } catch {} },
@@ -1772,7 +1781,7 @@ function renderShows(root) {
     renderItem: (s) => {
       const kids = [];
       if (Enrichment.enabled) {
-        kids.push(zoomImg('item-poster', Enrichment.posterFor(s.title, s.id), s.title));
+        kids.push(zoomImg('item-poster', Enrichment.posterFor(s.title, s.id), s.title, Enrichment.posterFullFor(s.title, s.id)));
       }
       kids.push(el('div', { class: 'item-main' }, [
         el('div', { class: 'item-title', text: s.title }),
@@ -1812,7 +1821,7 @@ function openShowDetail(show) {
     el('button', { class: 'back-btn', text: '‹ Shows', onclick: () => history.back() }),
   ]));
   const poster = el('div', { class: 'detail-poster' });
-  const setPoster = (url) => { poster.innerHTML = ''; if (url) poster.append(zoomImg('detail-poster-fill', url, show.title)); };
+  const setPoster = (url, full) => { poster.innerHTML = ''; if (url) poster.append(zoomImg('detail-poster-fill', url, show.title, full)); };
   root.append(el('div', { class: 'detail-hero' }, [
     poster,
     el('div', { class: 'detail-hero-text' }, [
@@ -1861,7 +1870,7 @@ function openShowDetail(show) {
   const render = (epMap, failed) => {
     body.innerHTML = '';
     const v = Enrichment.getCached(key);
-    setPoster(v && v.img);
+    setPoster(v && v.img, v && (v.imgO || v.img));
     const note = el('div', { class: 'enrich-note' });
     if (epMap) {
       note.append(el('span', { text: 'Episodes from TVmaze.' }));
@@ -1871,7 +1880,7 @@ function openShowDetail(show) {
       note.append(el('button', { class: 'btn secondary', text: failed ? '↻ Retry' : 'Load episodes', onclick: refetch }));
     }
     body.append(note);
-    renderSeasons(body, datesByEp, epMap, v && v.i, reactsByEp);
+    renderSeasons(body, datesByEp, epMap, v && v.i, reactsByEp, v && v.iO);
   };
 
   const cached = Enrichment.getCached(key);
@@ -1881,7 +1890,7 @@ function openShowDetail(show) {
   else render(null, false);
 }
 
-function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp) {
+function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, imgFullMap) {
   const full = !!epMap;
   const seasons = {}; // sNum -> { eNum -> title|null }
   const source = full ? Object.keys(epMap) : Object.keys(datesByEp);
@@ -1910,8 +1919,9 @@ function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp) {
       const abs = full && Number(s) > 0 ? absOffset[s] + Number(e) : null;
       const numTxt = `S${pad2(s)} · E${pad2(e)}` + (abs ? ` (E${pad2(abs)})` : '');
       const thumb = imgMap && imgMap[`${s}|${e}`];
+      const thumbFull = imgFullMap && imgFullMap[`${s}|${e}`];
       det.append(el('div', { class: 'ep-row' }, [
-        zoomImg('ep-thumb', thumb, seasons[s][e] || `Episode ${e}`),
+        zoomImg('ep-thumb', thumb, seasons[s][e] || `Episode ${e}`, thumbFull),
         el('div', { class: 'ep-body' }, [
           el('div', { class: 'ep-num', text: numTxt }),
           el('div', { class: 'ep-title' + (c ? '' : ' unseen'), text: seasons[s][e] || `Episode ${e}` }),
@@ -1982,7 +1992,7 @@ function historyItem(ev) {
   // movies get an empty placeholder so rows stay aligned.
   if (Enrichment.enabled) {
     const img = ev.type === 'episode' && info && info.image ? info.image : null;
-    kids.push(zoomImg('item-thumb', img, ev.title));
+    kids.push(zoomImg('item-thumb', img, ev.title, info && info.imageFull));
   }
   kids.push(el('div', { class: 'item-main' }, [
     el('div', { class: 'item-title', text: ev.type === 'movie' ? movieTitle(ev.title) : ev.title }),
@@ -2167,7 +2177,7 @@ function renderReactions(root) {
       // Thumbnail slot for both types; movies get an empty placeholder to stay aligned.
       if (Enrichment.enabled) {
         const img = r.kind === 'episode' && info && info.image ? info.image : null;
-        kids.push(zoomImg('item-thumb', img, r.title));
+        kids.push(zoomImg('item-thumb', img, r.title, info && info.imageFull));
       }
       kids.push(el('div', { class: 'item-main' }, [
         el('div', { class: 'item-title', text: r.kind === 'movie' ? movieTitle(r.title) : r.title }),
