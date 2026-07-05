@@ -134,13 +134,13 @@ const IDB = {
 };
 
 /* -------------------------------------------------------------------
-   Comment-image backup (Social → Comments).
-   The images attached to your comments live on TV Time's CDN, which sends no
-   CORS headers — so a browser can display them but can't read their bytes to
-   back them up. backup-images.sh (repo root) downloads them into a zip; this
-   store holds that zip's contents locally (keyed by meme id) so the images keep
-   rendering after the servers go dark. All blobs are loaded into object URLs at
-   startup so rendering can stay synchronous.
+   Image backup (comment images, avatars, badge art).
+   These live on TV Time's CDN, which sends no CORS headers — so a browser can
+   display them but can't read their bytes to back them up. backup-images.py (repo
+   root) downloads them into a foldered zip; this store holds that zip's contents
+   locally (keyed by "<folder>/<name>") so the images keep rendering after the
+   servers go dark. All blobs are loaded into object URLs at startup so rendering
+   can stay synchronous.
    ------------------------------------------------------------------- */
 const ImageBackup = {
   DB: 'tvt-images', STORE: 'memes',
@@ -173,10 +173,12 @@ const ImageBackup = {
     const db = await this._open();
     let n = 0;
     for (const entry of entries) {
-      const id = entry.name.split('/').pop().replace(/\.[^.]+$/, '');   // "450347.jpg" -> "450347"
-      if (!id) continue;
+      // Key by folder-namespaced path minus extension, e.g. "comments/450347-marked"
+      // or "avatars/123". Older flat zips ("450347-marked.jpg") key without a folder.
+      const key = entry.name.replace(/^\.?\//, '').replace(/\.[^./]+$/, '');
+      if (!key) continue;
       const blob = await entry.async('blob');
-      await new Promise((res, rej) => { const tx = db.transaction(this.STORE, 'readwrite'); tx.objectStore(this.STORE).put(blob, id); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+      await new Promise((res, rej) => { const tx = db.transaction(this.STORE, 'readwrite'); tx.objectStore(this.STORE).put(blob, key); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
       n++;
     }
     await this.init();
@@ -191,10 +193,16 @@ const ImageBackup = {
     this.urls.forEach(u => URL.revokeObjectURL(u)); this.urls.clear();
     return n;
   },
-  // Distinct comment images backed up (a meme can have both a -clean and -marked file).
-  count() {
+  // Total backed-up files (comments + avatars + badges).
+  count() { return this.urls.size; },
+  // Distinct comment images (a meme has both a -clean and -marked file; supports both
+  // the new "comments/<id>-…" layout and older flat "<id>-…" zips).
+  countComments() {
     const ids = new Set();
-    for (const k of this.urls.keys()) ids.add(k.replace(/-(clean|marked)$/, ''));
+    for (const k of this.urls.keys()) {
+      if (k.startsWith('comments/')) ids.add(k.slice(9).replace(/-(clean|marked)$/, ''));
+      else if (!k.includes('/')) ids.add(k.replace(/-(clean|marked)$/, ''));
+    }
     return ids.size;
   },
   urlFor(id) { return this.urls.get(String(id)) || null; },
@@ -1365,8 +1373,8 @@ function buildSettingsMenu() {
   });
   const movieNote = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-warning-circle' }), el('span', { text: 'This data is fetched from the Wikidata API, and may not be accurate.' })]);
 
-  // Comment-image backup: import a zip made by backup-images.sh.
-  const IMPORT_LABEL = 'Import comment images…';
+  // Image backup: import a zip made by backup-images.py (comment images, avatars, badges).
+  const IMPORT_LABEL = 'Import image backup…';
   const importItem = el('button', { class: 'menu-item' }, [el('span', { text: IMPORT_LABEL })]);
   importItem.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -1396,7 +1404,7 @@ function buildSettingsMenu() {
   clearSub.append(
     makeClear('Show metadata', 'Clear cached show metadata?', () => Enrichment.clearCache()),
     makeClear('Movie titles', 'Clear cached movie titles?', () => MovieMeta.clearCache()),
-    makeClear('Comment images', 'Clear imported comment images from this browser?', () => ImageBackup.clear()),
+    makeClear('Image backup', 'Clear all imported images (comments, avatars, badges) from this browser?', () => ImageBackup.clear()),
   );
   clearToggle.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -1818,7 +1826,7 @@ function openShowDetail(show) {
   window.scrollTo(0, 0);
 
   root.append(el('div', { class: 'backbar' }, [
-    el('button', { class: 'back-btn', text: '‹ Shows', onclick: () => history.back() }),
+    el('button', { class: 'back-btn', text: '‹ Back', onclick: () => history.back() }),
   ]));
   const poster = el('div', { class: 'detail-poster' });
   const setPoster = (url, full) => { poster.innerHTML = ''; if (url) poster.append(zoomImg('detail-poster-fill', url, show.title, full)); };
@@ -2250,11 +2258,13 @@ function renderLists(root) {
 function imageCandidates(m) {
   const out = [];
   const add = (u) => { if (u && !out.includes(u)) out.push(u); };
-  add(ImageBackup.urlFor(m.id + '-clean'));   // local clean backup
-  add(m.clean);                               // live clean
-  add(ImageBackup.urlFor(m.id + '-marked'));  // local marked backup
-  add(ImageBackup.urlFor(m.id));              // legacy backups keyed by bare id (marked)
-  add(m.url);                                 // live marked
+  add(ImageBackup.urlFor('comments/' + m.id + '-clean'));   // local clean backup (foldered)
+  add(ImageBackup.urlFor(m.id + '-clean'));                 // …or legacy flat zip
+  add(m.clean);                                             // live clean
+  add(ImageBackup.urlFor('comments/' + m.id + '-marked'));  // local marked backup (foldered)
+  add(ImageBackup.urlFor(m.id + '-marked'));                // …or legacy flat zip
+  add(ImageBackup.urlFor(m.id));                            // …or very old single-file zip
+  add(m.url);                                               // live marked
   out.push(BROKEN_IMG);
   return out;
 }
@@ -2361,9 +2371,9 @@ function renderComments(root) {
 // "Clear backup"; otherwise it's "Import backup".
 function commentBackupBanner() {
   const wrap = el('div', { class: 'cmt-backup' });
-  const n = ImageBackup.count();
+  const n = ImageBackup.countComments();
 
-  const readme = 'https://github.com/Remls/TVTimeArchive#backing-up-your-comment-images';
+  const readme = 'https://github.com/Remls/TVTimeArchive#backing-up-images';
   const status = el('div', { class: 'cmt-backup-status' }, [
     el('div', { class: 'cmt-backup-title' }, [el('i', { class: 'ph ph-images' }), el('strong', { text: 'Comment images' })]),
     n

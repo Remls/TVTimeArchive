@@ -1,11 +1,12 @@
-# Your TV Time export — keep personal data out of git
+# Your TV Time export; image backup script will look inside this folder by default
 gdpr-data/
 gdpr-data.zip
-*-export.zip
 
-# Comment-image backup produced by backup-images.sh
+# Image backup produced by backup-images.py
 image-backup/
 tvt-image-backup.zip
 
-# OS / editor cruft
+# Others
+__pycache__/
+*.pyc
 .DS_Store

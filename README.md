@@ -15,8 +15,9 @@ Not affiliated with TV Time / Whip Media.
 This is a **reader** for the data backup TV Time gives you — *not* a replacement for
 it. Some of it is best-effort guesswork (how reactions are encoded, how the data
 fits together across many tables), and some things simply can't be recovered from
-the export they provide — your friends list, for example, or your posted images and
-GIFs once the servers are taken offline.
+the export they provide — your friends list, for example. Images that live on TV
+Time's servers (comment memes, avatars, badge art) only survive a shutdown if you
+back them up first — see [Backing up images](#backing-up-images).
 
 I have no intention of running a server to hold this data centrally or to fill in
 the gaps by crowdsourcing — managing other people's data is a can of worms I want no
@@ -65,39 +66,46 @@ visits; "Change source .zip file" in the ⚙ menu forgets it and clears local st
 | **Reactions** | Finish-episode / finish-movie reactions |
 | **Lists** | Your custom lists and collections, resolved to titles with cover art |
 | **Comments** | Every comment you posted, with attached images, likes, and reply threads |
-| **Profile** | Account details |
+| **Notifications** | Read-only activity feed — likes, replies, mentions, follow requests, badges, and airing reminders, with avatars |
+| **Badges** | Badges you earned, grouped by type with counts and the shows that earned them |
+| **Profile** | Account details, avatar, and cover image |
 | **All data** | Browse, sort, filter, and export any CSV table in the archive |
 
 Curated views support search, sort, filter, and CSV/JSON export.
 
-## Backing up your comment images
+## Backing up images
 
-The **Comments** view shows the images you attached to comments. While TV Time is
-online they load straight from its servers — nothing extra needed. But those images
-live on TV Time's CDN, so when the servers go offline the links break.
+Some images come from TV Time's own CDN: your **comment images**, the **avatars** in
+your Notifications feed, and **badge artwork**. While TV Time is online they load
+straight from its servers — nothing extra needed. But when the servers go offline
+those links break.
 
 The browser can *display* those images but can't *read* their bytes to save them
-(the image host sends no CORS headers), so the backup is made with a small script
-rather than a button in the app:
+(the CDN sends no CORS headers), so the backup is made with a small script rather
+than a button in the app. It's plain Python 3 (no other dependencies) and runs the
+same on macOS, Linux, and Windows:
 
 1. Unzip your export somewhere (so `meme.csv` and friends sit in a folder).
 2. Run the script against it while TV Time is still up:
 
    ```bash
-   ./backup-images.sh path/to/your/export
+   python3 backup-images.py path/to/your/export
    # writes tvt-image-backup.zip
    ```
 
-   It downloads every comment image and packs them into `tvt-image-backup.zip`.
-   Memes are saved in both variants — a clean one and the watermarked "marked" one;
-   the app shows the clean version when it can and falls back to the marked one.
-   Re-running is safe and resumes where it left off.
+   It downloads the images into folders — `comments/`, `avatars/`, `badges/` — and
+   packs them into `tvt-image-backup.zip`. Comment memes are saved in both a clean
+   and a watermarked "marked" variant; the app shows the clean one when it can and
+   falls back to the marked one. Re-running is safe and resumes where it left off.
 3. In the app, open **⚙ → Import image backup** (or the **Import backup** button at
    the top of the Comments view) and choose that zip.
 
-Imported images are stored in your browser and shown from the local copy, so your
-comment images keep working after TV Time is gone. Missing images fall back to a
-placeholder.
+Imported images are stored in your browser and shown from the local copy, so they
+keep working after TV Time is gone. Missing images fall back to a placeholder.
+
+Not all images need backing up — show posters and episode stills come from the
+keyless [TVmaze](https://www.tvmaze.com/api) API (see below), which is unaffected by
+TV Time shutting down.
 
 ## Optional metadata
 
@@ -120,9 +128,13 @@ only a show or movie name to the API when enabled:
   `show_comment`, `profile_comment`, and the newer `comments-prod-comments`), with
   images joined from `meme.csv`. Replies keep their parent's text only when the
   parent is also one of your comments — other people's comments aren't in the export.
-- The remaining social parts (likes given, friends, notifications) have no dedicated
-  view — friends, in particular, are only opaque numeric ids in the export — but
-  every table stays browsable under **All data**.
+- **Notifications & badges.** Your activity feed (`notifications-prod-notifications`)
+  and earned badges (`user_badge`) each get a view; badge art and per-badge shows are
+  reconstructed by joining ids across tables, and follow-request notifications even
+  recover a few usernames.
+- **Friends** (`friend.csv`) are only opaque numeric ids — no usernames anywhere in
+  the export — so there's no friends view. Likes you *gave* also have no dedicated
+  view, but every table stays browsable under **All data**.
 
 ## Run your own copy
 
