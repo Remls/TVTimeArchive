@@ -227,6 +227,23 @@ function openLightbox(src) {
   document.body.append(overlay);
 }
 
+// A circular user avatar. Prefers a local backup (key "avatars/<userId>"), then the
+// live CloudFront picture, then initials — same local-then-live rule as other images.
+function avatarEl(url, name, userId, cls) {
+  const wrap = el('span', { class: 'avatar' + (cls ? ' ' + cls : '') });
+  const local = userId ? ImageBackup.urlFor('avatars/' + userId) : null;
+  const src = local || (url || '').trim();
+  const fallback = () => wrap.append(el('span', { class: 'avatar-fallback', text: (name || '').trim().slice(0, 1).toUpperCase() || '?' }));
+  if (src) {
+    const img = el('img', { src, alt: name ? `${name} avatar` : '', loading: 'lazy' });
+    if (!local) img.addEventListener('error', () => { img.remove(); if (!wrap.querySelector('.avatar-fallback')) fallback(); });
+    wrap.append(img);
+  } else {
+    fallback();
+  }
+  return wrap;
+}
+
 // A sized image box (poster / thumbnail / cover) that opens full-size on click.
 // `cls` provides the size/frame; with no src it's an empty placeholder of that shape.
 function zoomImg(cls, src, alt) {
@@ -625,8 +642,8 @@ function buildProfile() {
   // user.csv `name` is often just the numeric user id — treat that as "no real name".
   const rawName = (u.name || '').trim();
   const realName = (rawName && rawName !== u.id && !/^\d+$/.test(rawName)) ? rawName : '';
-  const username = ((T('routing-prod-users.csv')[0] || {}).username
-    || (T('auth-prod-login.csv').find(r => r.username) || {}).username || '').trim();
+  const routing = T('routing-prod-users.csv')[0] || {};
+  const username = (routing.username || (T('auth-prod-login.csv').find(r => r.username) || {}).username || '').trim();
   // Greeting: real name, else username (no @), else nothing.
   const displayName = realName || username;
 
@@ -634,6 +651,8 @@ function buildProfile() {
     name: realName || '—',
     username,
     displayName,
+    avatar: (routing.image_url || '').trim(),      // profile picture (CloudFront)
+    userId: (routing.user_id || u.id || '').trim(),
     email: u.mail || personal.email || '—',
     language: u.language || '—',
     timezone: u.timezone || '—',
@@ -1165,12 +1184,18 @@ function buildChrome() {
   }
   const bar = $('#tabbar');
   bar.innerHTML = '';
+  const prof = STATE.model && STATE.model.profile;
+  const hasAvatar = prof && (prof.avatar || (prof.userId && ImageBackup.urlFor('avatars/' + prof.userId)));
   for (const v of VIEWS) {
+    // The Profile tab shows your avatar (when available) instead of the generic icon.
+    const icon = (v.id === 'profile' && hasAvatar)
+      ? avatarEl(prof.avatar, prof.displayName, prof.userId, 'tab-avatar')
+      : el('i', { class: 'ph ' + v.icon + ' tab-ico' });
     bar.append(el('button', {
       class: 'tab' + (v.id === STATE.view ? ' active' : ''),
       'data-view': v.id,
       onclick: () => navigate({ view: v.id }),
-    }, [el('i', { class: 'ph ' + v.icon + ' tab-ico' }), el('span', { text: v.label })]));
+    }, [icon, el('span', { text: v.label })]));
   }
   buildSettingsMenu();
 }
@@ -1366,8 +1391,12 @@ const showPosterItem = (title, seriesId) => ({ seriesId: seriesId || Enrichment.
 function renderOverview(root) {
   const o = STATE.model.overview;
   const p = STATE.model.profile;
-  viewHead(root, p.displayName ? `${p.displayName}’s archive` : 'Overview',
-    `Tracked since ${fmtDate(o.firstWatch)} · last activity ${fmtDate(o.lastWatch)}`);
+  const title = p.displayName ? `${p.displayName}’s archive` : 'Overview';
+  const subtitle = `Tracked since ${fmtDate(o.firstWatch)} · last activity ${fmtDate(o.lastWatch)}`;
+  root.append(el('div', { class: 'view-head with-avatar' }, [
+    avatarEl(p.avatar, p.displayName, p.userId, 'lg'),
+    el('div', {}, [el('h2', { text: title }), el('p', { text: subtitle })]),
+  ]));
 
   const cards = [
     // single-accent: only the hero stat (total time in TV) is coral; the rest read neutral
@@ -2240,7 +2269,20 @@ function commentBackupBanner() {
    =================================================================== */
 function renderProfile(root) {
   const p = STATE.model.profile;
-  viewHead(root, 'Profile', 'Account details');
+
+  // Hero: cover fills the top and fades into the page; avatar + name centred over it.
+  const cover = (p.personal || {}).cover;
+  const hasCover = nonEmpty(cover) && /^https?:\/\//.test(cover);
+  const hero = el('div', { class: 'profile-hero' + (hasCover ? '' : ' no-cover') });
+  if (hasCover) hero.append(el('div', { class: 'profile-hero-bg', style: `background-image:url("${cover.replace(/"/g, '%22')}")` }));
+  hero.append(el('div', { class: 'profile-hero-body' }, [
+    avatarEl(p.avatar, p.displayName, p.userId, 'xl'),
+    el('div', { class: 'profile-hero-name', text: p.displayName || '—' }),
+    p.username && p.username !== p.displayName ? el('div', { class: 'profile-hero-sub', text: '@' + p.username }) : null,
+  ]));
+  root.append(hero);
+
+  root.append(el('div', { class: 'section-title', text: 'Account details' }));
   const rows = [
     ['Name', p.name], ['Username', p.username], ['Email', p.email], ['Language', p.language], ['Timezone', p.timezone],
     ['Member since', fmtDate(p.createdAt)], ['Last opened', fmtDateTime(p.lastOpened)],
@@ -2250,14 +2292,7 @@ function renderProfile(root) {
   for (const [k, v] of rows) { dl.append(el('dt', { text: k }), el('dd', { text: v })); }
   root.append(dl);
 
-  // Profile cover image, shown inline (zoomable) rather than as a raw URL.
-  const cover = (p.personal || {}).cover;
-  if (nonEmpty(cover) && /^https?:\/\//.test(cover)) {
-    root.append(el('div', { class: 'section-title', text: 'Cover image' }));
-    root.append(zoomImg('profile-cover', cover, 'Cover image'));
-  }
-
-  // extra personal-data key/values (cover handled above)
+  // extra personal-data key/values (cover is the hero background, not a row)
   const extra = Object.entries(p.personal || {}).filter(([k, v]) => nonEmpty(v) && k !== 'cover');
   if (extra.length) {
     root.append(el('div', { class: 'section-title', text: 'Personal data' }));
