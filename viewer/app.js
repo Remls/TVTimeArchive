@@ -227,6 +227,17 @@ function openLightbox(src) {
   document.body.append(overlay);
 }
 
+// A sized image box (poster / thumbnail / cover) that opens full-size on click.
+// `cls` provides the size/frame; with no src it's an empty placeholder of that shape.
+function zoomImg(cls, src, alt) {
+  if (!src) return el('div', { class: cls });
+  const img = el('img', { src, loading: 'lazy', alt: alt || '' });
+  return el('button', {
+    class: cls + ' img-zoom', title: 'View image',
+    onclick: (e) => { e.stopPropagation(); openLightbox(img.currentSrc || img.src); },
+  }, [img]);
+}
+
 /* -------------------------------------------------------------------
    Global loading indicator — the top bar animates while any async
    work (currently TVmaze fetches) is in flight.
@@ -1191,15 +1202,6 @@ function buildSettingsMenu() {
   });
   const note = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-warning-circle' }), el('span', { text: 'This data is fetched from the TVMaze API.' })]);
 
-  const clearItem = el('button', { class: 'menu-item' }, [el('span', { text: 'Clear show metadata cache' })]);
-  clearItem.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const n = Enrichment.clearCache();
-    clearItem.firstChild.textContent = n ? `Cleared ${n} ✓` : 'Nothing cached';
-    setTimeout(() => { clearItem.firstChild.textContent = 'Clear show metadata cache'; }, 1500);
-    applyState(history.state || hashToState());
-  });
-
   // Movie titles via Wikidata (separate opt-in + cache)
   const msw = el('span', { class: 'switch' + (MovieMeta.enabled ? ' on' : '') });
   const movieToggle = el('button', { class: 'menu-item' }, [el('span', { text: 'Auto-load movie titles' }), msw]);
@@ -1211,43 +1213,57 @@ function buildSettingsMenu() {
     applyState(history.state || hashToState());
   });
   const movieNote = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-warning-circle' }), el('span', { text: 'This data is fetched from the Wikidata API, and may not be accurate.' })]);
-  const movieClear = el('button', { class: 'menu-item' }, [el('span', { text: 'Clear movie title cache' })]);
-  movieClear.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const n = MovieMeta.clearCache();
-    movieClear.firstChild.textContent = n ? `Cleared ${n} ✓` : 'Nothing cached';
-    setTimeout(() => { movieClear.firstChild.textContent = 'Clear movie title cache'; }, 1500);
-    applyState(history.state || hashToState());
-  });
 
-  // Comment-image backup: import a zip made by backup-images.sh; clear it.
-  const importItem = el('button', { class: 'menu-item' }, [el('span', { text: 'Import image backup' })]);
+  // Comment-image backup: import a zip made by backup-images.sh.
+  const IMPORT_LABEL = 'Import comment images…';
+  const importItem = el('button', { class: 'menu-item' }, [el('span', { text: IMPORT_LABEL })]);
   importItem.addEventListener('click', (e) => {
     e.stopPropagation();
     pickImageBackup((err, count) => {
       importItem.firstChild.textContent = err ? (err.message || 'Import failed') : `Imported ${fmtInt(count)} ✓`;
-      setTimeout(() => { importItem.firstChild.textContent = 'Import image backup'; }, 1800);
+      setTimeout(() => { importItem.firstChild.textContent = IMPORT_LABEL; }, 1800);
       if (!err) applyState(history.state || hashToState());
     });
   });
-  const importNote = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-info' }), el('span', { text: 'Make one with backup-images.sh (see README) so comment images survive TV Time shutting down.' })]);
-  const imgClear = el('button', { class: 'menu-item' }, [el('span', { text: 'Clear image backup' })]);
-  imgClear.addEventListener('click', async (e) => {
+
+  // Umbrella "Clear cache…" — expands to per-cache clears, each confirm-gated.
+  const clearWrap = el('div', { class: 'menu-sub-wrap' });
+  const clearToggle = el('button', { class: 'menu-item' }, [el('span', { text: 'Clear cache…' }), el('i', { class: 'ph ph-caret-right menu-caret' })]);
+  const clearSub = el('div', { class: 'menu-sub', hidden: '' });
+  const makeClear = (label, confirmMsg, fn) => {
+    const item = el('button', { class: 'menu-item sub' }, [el('span', { text: label })]);
+    item.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm(confirmMsg)) return;
+      const n = await fn();
+      item.firstChild.textContent = n ? `Cleared ${fmtInt(n)} ✓` : 'Nothing to clear';
+      setTimeout(() => { item.firstChild.textContent = label; }, 1500);
+      applyState(history.state || hashToState());
+    });
+    return item;
+  };
+  clearSub.append(
+    makeClear('Show metadata', 'Clear cached show metadata?', () => Enrichment.clearCache()),
+    makeClear('Movie titles', 'Clear cached movie titles?', () => MovieMeta.clearCache()),
+    makeClear('Comment images', 'Clear imported comment images from this browser?', () => ImageBackup.clear()),
+  );
+  clearToggle.addEventListener('click', (e) => {
     e.stopPropagation();
-    const n = await ImageBackup.clear();
-    imgClear.firstChild.textContent = n ? `Cleared ${fmtInt(n)} ✓` : 'Nothing stored';
-    setTimeout(() => { imgClear.firstChild.textContent = 'Clear image backup'; }, 1500);
-    applyState(history.state || hashToState());
+    clearSub.hidden = !clearSub.hidden;
+    clearToggle.querySelector('.menu-caret').classList.toggle('open', !clearSub.hidden);
   });
+  clearWrap.append(clearToggle, clearSub);
 
   const changeItem = el('button', { class: 'menu-item' }, [el('span', { text: 'Change source .zip file' })]);
-  changeItem.addEventListener('click', () => { close(); resetApp(); });
-  const changeNote = el('div', { class: 'menu-note' }, [el('span', { text: 'Stored only in this browser. This removes it.' })]);
+  changeItem.addEventListener('click', () => {
+    if (!confirm('This forgets the loaded archive (cached metadata and comment images stay). Continue?')) return;
+    close(); resetApp();
+  });
 
-  pop.append(toggleItem, note, el('div', { class: 'menu-sep' }), clearItem,
-    el('div', { class: 'menu-sep' }), movieToggle, movieNote, el('div', { class: 'menu-sep' }), movieClear,
-    el('div', { class: 'menu-sep' }), importItem, importNote, imgClear,
-    el('div', { class: 'menu-sep' }), changeItem, changeNote);
+  pop.append(toggleItem, note, el('div', { class: 'menu-sep' }), movieToggle, movieNote,
+    el('div', { class: 'menu-sep' }), importItem,
+    el('div', { class: 'menu-sep' }), clearWrap,
+    el('div', { class: 'menu-sep' }), changeItem);
   host.append(gear, pop);
 
   const onDoc = (e) => { if (!host.contains(e.target)) close(); };
@@ -1570,8 +1586,7 @@ function renderShows(root) {
     renderItem: (s) => {
       const kids = [];
       if (Enrichment.enabled) {
-        const poster = Enrichment.posterFor(s.title, s.id);
-        kids.push(el('div', { class: 'item-poster' }, poster ? [el('img', { src: poster, loading: 'lazy', alt: '' })] : []));
+        kids.push(zoomImg('item-poster', Enrichment.posterFor(s.title, s.id), s.title));
       }
       kids.push(el('div', { class: 'item-main' }, [
         el('div', { class: 'item-title', text: s.title }),
@@ -1611,7 +1626,7 @@ function openShowDetail(show) {
     el('button', { class: 'back-btn', text: '‹ Shows', onclick: () => history.back() }),
   ]));
   const poster = el('div', { class: 'detail-poster' });
-  const setPoster = (url) => { poster.innerHTML = ''; if (url) poster.append(el('img', { src: url, loading: 'lazy', alt: '' })); };
+  const setPoster = (url) => { poster.innerHTML = ''; if (url) poster.append(zoomImg('detail-poster-fill', url, show.title)); };
   root.append(el('div', { class: 'detail-hero' }, [
     poster,
     el('div', { class: 'detail-hero-text' }, [
@@ -1710,7 +1725,7 @@ function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp) {
       const numTxt = `S${pad2(s)} · E${pad2(e)}` + (abs ? ` (E${pad2(abs)})` : '');
       const thumb = imgMap && imgMap[`${s}|${e}`];
       det.append(el('div', { class: 'ep-row' }, [
-        el('div', { class: 'ep-thumb' }, thumb ? [el('img', { src: thumb, loading: 'lazy', alt: '' })] : []),
+        zoomImg('ep-thumb', thumb, seasons[s][e] || `Episode ${e}`),
         el('div', { class: 'ep-body' }, [
           el('div', { class: 'ep-num', text: numTxt }),
           el('div', { class: 'ep-title' + (c ? '' : ' unseen'), text: seasons[s][e] || `Episode ${e}` }),
@@ -1781,7 +1796,7 @@ function historyItem(ev) {
   // movies get an empty placeholder so rows stay aligned.
   if (Enrichment.enabled) {
     const img = ev.type === 'episode' && info && info.image ? info.image : null;
-    kids.push(el('div', { class: 'item-thumb' }, img ? [el('img', { src: img, loading: 'lazy', alt: '' })] : []));
+    kids.push(zoomImg('item-thumb', img, ev.title));
   }
   kids.push(el('div', { class: 'item-main' }, [
     el('div', { class: 'item-title', text: ev.type === 'movie' ? movieTitle(ev.title) : ev.title }),
@@ -1965,7 +1980,7 @@ function renderReactions(root) {
       // Thumbnail slot for both types; movies get an empty placeholder to stay aligned.
       if (Enrichment.enabled) {
         const img = r.kind === 'episode' && info && info.image ? info.image : null;
-        kids.push(el('div', { class: 'item-thumb' }, img ? [el('img', { src: img, loading: 'lazy', alt: '' })] : []));
+        kids.push(zoomImg('item-thumb', img, r.title));
       }
       kids.push(el('div', { class: 'item-main' }, [
         el('div', { class: 'item-title', text: r.kind === 'movie' ? movieTitle(r.title) : r.title }),
@@ -2145,14 +2160,14 @@ function commentBackupBanner() {
   const wrap = el('div', { class: 'cmt-backup' });
   const n = ImageBackup.count();
 
+  const readme = 'https://github.com/Remls/TVTimeArchive#backing-up-your-comment-images';
   const status = el('div', { class: 'cmt-backup-status' }, [
     el('div', { class: 'cmt-backup-title' }, [el('i', { class: 'ph ph-images' }), el('strong', { text: 'Comment images' })]),
-    el('p', {}, [n
-      ? `${fmtInt(n)} loaded from your local backup — they’ll keep working after TV Time goes offline.`
-      : 'Shown live from TV Time. Back them up before the servers close so they don’t break.']),
-    el('p', { class: 'muted small' }, n
-      ? ['Stored in this browser only. Re-import any time to refresh it.']
-      : ['Create a backup with ', el('code', { text: 'backup-images.sh' }), ' (see the README), then import the zip here.']),
+    n
+      ? el('p', { text: `${fmtInt(n)} saved locally.` })
+      : el('p', {}, ['Loaded live from TV Time. ',
+          el('a', { href: readme, target: '_blank', rel: 'noopener noreferrer', text: 'Back them up' }),
+          ' before the servers close.']),
   ]);
 
   // Redraw the whole view so images swap between local copies and live URLs.
@@ -2188,8 +2203,15 @@ function renderProfile(root) {
   for (const [k, v] of rows) { dl.append(el('dt', { text: k }), el('dd', { text: v })); }
   root.append(dl);
 
-  // extra personal-data key/values
-  const extra = Object.entries(p.personal || {}).filter(([, v]) => nonEmpty(v));
+  // Profile cover image, shown inline (zoomable) rather than as a raw URL.
+  const cover = (p.personal || {}).cover;
+  if (nonEmpty(cover) && /^https?:\/\//.test(cover)) {
+    root.append(el('div', { class: 'section-title', text: 'Cover image' }));
+    root.append(zoomImg('profile-cover', cover, 'Cover image'));
+  }
+
+  // extra personal-data key/values (cover handled above)
+  const extra = Object.entries(p.personal || {}).filter(([k, v]) => nonEmpty(v) && k !== 'cover');
   if (extra.length) {
     root.append(el('div', { class: 'section-title', text: 'Personal data' }));
     const dl2 = el('dl', { class: 'kv' });

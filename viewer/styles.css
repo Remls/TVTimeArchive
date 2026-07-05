@@ -169,6 +169,11 @@ button { font-family: inherit; cursor: pointer; }
   padding: 10px; border-radius: var(--radius-sm); font-size: .9rem;
 }
 .menu-item:hover { background: var(--surface); }
+.menu-caret { color: var(--text-faint); font-size: .95rem; transition: transform .15s; }
+.menu-caret.open { transform: rotate(90deg); }
+.menu-sub { display: grid; gap: 2px; margin: 2px 0 2px 10px; padding-left: 6px; border-left: 1px solid var(--line); }
+.menu-item.sub { font-size: .86rem; color: var(--text-dim); padding: 8px 10px; }
+.menu-item.sub:hover { color: var(--text); }
 .menu-note { color: var(--text-faint); font-size: .72rem; line-height: 1.5; padding: 0 10px 8px; display: flex; align-items: flex-start; gap: 6px; }
 /* Match the icon's line-box to the text so it centres on the first line (Phosphor forces line-height:1). */
 .menu-note .ph { flex: 0 0 auto; line-height: inherit; }
@@ -424,6 +429,8 @@ details.season[open] > summary::before { transform: rotate(90deg); }
   }
   .tab .tab-ico { font-size: 1.15rem; }
   .tab.active { background: var(--surface-2); color: var(--accent); }
+  /* Pin "All data" (the last tab) to the bottom of the sidebar. */
+  .tabbar .tab:last-child { margin-top: auto; }
   .brand-rail { grid-area: brandbar; display: flex; align-items: center; gap: 10px; padding: 0 18px; height: var(--topbar-h); border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); background: var(--surface); font-weight: 700; }
 
   .stat-grid { grid-template-columns: repeat(4, 1fr); }
@@ -471,6 +478,8 @@ details.season[open] > summary::before { transform: rotate(90deg); }
 .cmt-backup-title { display: flex; align-items: center; gap: 8px; }
 .cmt-backup-title i { color: var(--accent); }
 .cmt-backup-status p { color: var(--text-dim); font-size: .84rem; margin-top: 3px; }
+.cmt-backup-status a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.cmt-backup-status a:hover { text-decoration: underline; }
 .cmt-backup-status p.muted.small { color: var(--text-faint); font-size: .78rem; }
 .cmt-backup-status code { background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
 .cmt-backup .btn { flex: 0 0 auto; }
@@ -480,3 +489,15 @@ details.season[open] > summary::before { transform: rotate(90deg); }
   background: rgba(0,0,0,.85); padding: 24px; cursor: zoom-out;
 }
 .lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,.6); }
+
+/* ---------- Zoomable inline images (posters, thumbnails, covers) ---------- */
+/* Reset button chrome only; the sizing/frame comes from the poster/thumb class. */
+.img-zoom { padding: 0; font: inherit; color: inherit; cursor: zoom-in; }
+.detail-poster-fill { display: block; width: 100%; height: 100%; }
+
+.profile-cover {
+  display: block; width: 100%; max-width: 520px; aspect-ratio: 16 / 9;
+  border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+  background: var(--surface-2); cursor: zoom-in;
+}
+.profile-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
