@@ -29,6 +29,7 @@ const el = (tag, props = {}, kids = []) => {
 const norm = (s) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
 const toNum = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
 const nonEmpty = (v) => v !== undefined && v !== null && String(v).trim() !== '';
+const truncate = (s, n) => { s = (s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 
 function parseDate(s) {
   if (!s) return null;
@@ -131,6 +132,100 @@ const IDB = {
     } catch {}
   },
 };
+
+/* -------------------------------------------------------------------
+   Comment-image backup (Social → Comments).
+   The images attached to your comments live on TV Time's CDN, which sends no
+   CORS headers — so a browser can display them but can't read their bytes to
+   back them up. backup-images.sh (repo root) downloads them into a zip; this
+   store holds that zip's contents locally (keyed by meme id) so the images keep
+   rendering after the servers go dark. All blobs are loaded into object URLs at
+   startup so rendering can stay synchronous.
+   ------------------------------------------------------------------- */
+const ImageBackup = {
+  DB: 'tvt-images', STORE: 'memes',
+  urls: new Map(),   // memeId(string) -> object URL
+  _open() {
+    return new Promise((res, rej) => {
+      const req = indexedDB.open(this.DB, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(this.STORE);
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+  },
+  async init() {
+    try {
+      const db = await this._open();
+      const [blobs, keys] = await new Promise((res, rej) => {
+        const tx = db.transaction(this.STORE, 'readonly'); const os = tx.objectStore(this.STORE);
+        const gv = os.getAll(); const gk = os.getAllKeys();
+        tx.oncomplete = () => res([gv.result || [], gk.result || []]);
+        tx.onerror = () => rej(tx.error);
+      });
+      this.urls.forEach(u => URL.revokeObjectURL(u)); this.urls.clear();
+      keys.forEach((k, i) => { if (blobs[i]) this.urls.set(String(k), URL.createObjectURL(blobs[i])); });
+    } catch (e) { console.warn('ImageBackup init failed', e); }
+  },
+  async importZip(file) {
+    const zip = await JSZip.loadAsync(file);
+    const entries = Object.values(zip.files).filter(f => !f.dir && /\.(jpe?g|png|gif|webp)$/i.test(f.name));
+    if (!entries.length) throw new Error('No images found in that zip.');
+    const db = await this._open();
+    let n = 0;
+    for (const entry of entries) {
+      const id = entry.name.split('/').pop().replace(/\.[^.]+$/, '');   // "450347.jpg" -> "450347"
+      if (!id) continue;
+      const blob = await entry.async('blob');
+      await new Promise((res, rej) => { const tx = db.transaction(this.STORE, 'readwrite'); tx.objectStore(this.STORE).put(blob, id); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+      n++;
+    }
+    await this.init();
+    return n;
+  },
+  async clear() {
+    try {
+      const db = await this._open();
+      await new Promise((res) => { const tx = db.transaction(this.STORE, 'readwrite'); tx.objectStore(this.STORE).clear(); tx.oncomplete = res; tx.onerror = res; });
+    } catch {}
+    const n = this.urls.size;
+    this.urls.forEach(u => URL.revokeObjectURL(u)); this.urls.clear();
+    return n;
+  },
+  // Distinct comment images backed up (a meme can have both a -clean and -marked file).
+  count() {
+    const ids = new Set();
+    for (const k of this.urls.keys()) ids.add(k.replace(/-(clean|marked)$/, ''));
+    return ids.size;
+  },
+  urlFor(id) { return this.urls.get(String(id)) || null; },
+};
+
+// Inline "image unavailable" placeholder — shown when an image is neither backed
+// up locally nor reachable on the (possibly retired) server.
+const BROKEN_IMG = 'data:image/svg+xml,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">' +
+  '<rect width="320" height="180" rx="10" fill="#241c15"/>' +
+  '<rect x="1" y="1" width="318" height="178" rx="9" fill="none" stroke="#2f261e"/>' +
+  '<g fill="none" stroke="#6f6456" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">' +
+  '<rect x="120" y="62" width="80" height="60" rx="6"/>' +
+  '<path d="M120 104 l20 -18 l16 14 l18 -20 l26 24"/>' +
+  '<circle cx="146" cy="82" r="6"/>' +
+  '<path d="M112 54 l96 76" stroke="#8a5040"/>' +
+  '</g>' +
+  '<text x="160" y="150" text-anchor="middle" font-family="Instrument Sans, Helvetica, Arial, sans-serif" font-size="14" fill="#a89e92">Image unavailable</text>' +
+  '</svg>'
+);
+
+// Simple full-image overlay; click anywhere (or Esc) to close.
+function openLightbox(src) {
+  const img = el('img', { src, alt: '' });
+  const overlay = el('div', { class: 'lightbox' }, [img]);
+  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  overlay.addEventListener('click', close);
+  document.addEventListener('keydown', onKey);
+  document.body.append(overlay);
+}
 
 /* -------------------------------------------------------------------
    Global loading indicator — the top bar animates while any async
@@ -427,6 +522,9 @@ async function loadArchive(file, opts = {}) {
   Enrichment.seriesIdByName = {};
   for (const s of STATE.model.shows) if (s.id) Enrichment.seriesIdByName[norm(s.title)] = s.id;
 
+  // Load any locally-backed-up comment images so they render from local copies.
+  await ImageBackup.init();
+
   // Persist the raw archive locally (IndexedDB) so it reloads next visit. Never uploaded.
   if (!opts.restoring) IDB.put(file, file.name || 'archive.zip');
 
@@ -491,6 +589,10 @@ function buildModel(tables) {
 
   /* ---- Lists: lists-prod-lists.csv (collection + per-list items, titles resolved) ---- */
   m.lists = buildLists();
+
+  /* ---- Comments: your posts across episode/show/movie/profile comment tables,
+     with attached images (meme.csv) and reply threading where recoverable ---- */
+  m.comments = buildComments(m.shows);
 
   /* ---- Stats: stats-prod-cache.csv (marathons, per-month charts) ---- */
   m.stats = buildStats();
@@ -853,6 +955,103 @@ function buildLists() {
   return out;
 }
 
+/* ---------------- Comments ----------------
+   Your own comments, gathered from every comment table in the export:
+     episode_comment.csv        — comments on episodes (the bulk)
+     show_comment.csv           — comments on a show as a whole
+     profile_comment.csv        — comments you left on a friend's profile
+     comments-prod-comments.csv — newer movie/series comments (type comment/reply)
+   Attached images come from meme.csv, joined on episode_comment_id.
+   Replies keep their parent's text only when the parent is also one of your
+   comments (other users' comments aren't in the export). */
+function buildComments(shows) {
+  const showSlugs = new Set(shows.map(s => slugify(s.title)));
+  const slugForShow = (name) => { const s = slugify(name || ''); return s && showSlugs.has(s) ? s : null; };
+
+  // Images grouped by the episode comment they hang off.
+  const memesByComment = {};
+  for (const mm of T('meme.csv')) {
+    const cid = (mm.episode_comment_id || '').trim(); if (!cid) continue;
+    const url = (mm.medium_url || '').trim(); if (!url) continue;
+    (memesByComment[cid] || (memesByComment[cid] = [])).push({
+      id: (mm.id || '').trim(),
+      url,                                        // "marked" — the version as posted
+      clean: (mm.clean_version_medium_url || '').trim(),
+      kind: mm.type || 'meme',
+      w: toNum(mm.width) || null, h: toNum(mm.height) || null,
+    });
+  }
+
+  const list = [];
+  const byId = {};   // legacy comment id -> entry (for reply parent lookup)
+
+  // TV Time stores absent fields as the literal string "null" (e.g. extended_comment
+  // is always "null" here), so treat those as empty.
+  const clean = (v) => { const s = (v || '').trim(); return (s === 'null' || s === 'undefined') ? '' : s; };
+  const textOf = (r) => clean(r.comment) || clean(r.extended_comment) || clean(r.text) || clean(r.message);
+  const add = (e) => { list.push(e); if (e.id) byId[e.id] = e; return e; };
+
+  // episode_comment.csv
+  for (const r of T('episode_comment.csv')) {
+    const text = textOf(r); const images = memesByComment[(r.id || '').trim()] || [];
+    if (!text && !images.length) continue;
+    add({
+      id: (r.id || '').trim(), kind: 'episode', target: clean(r.tv_show_name),
+      slug: slugForShow(r.tv_show_name),
+      season: toNum(r.episode_season_number) || null, episode: toNum(r.episode_number) || null,
+      text, images, likes: toNum(r.nb_likes),
+      parentId: (r.parent_comment_id || '').trim().replace(/^0$/, ''),
+      date: parseDate(r.created_at),
+    });
+  }
+  // show_comment.csv
+  for (const r of T('show_comment.csv')) {
+    const text = textOf(r); if (!text) continue;
+    add({
+      id: (r.id || '').trim(), kind: 'show', target: clean(r.tv_show_name),
+      slug: slugForShow(r.tv_show_name), text, images: [], likes: toNum(r.nb_likes),
+      parentId: (r.parent_comment_id || '').trim().replace(/^0$/, ''), date: parseDate(r.created_at),
+    });
+  }
+  // profile_comment.csv — target is a friend's profile (id only; names aren't in the export)
+  for (const r of T('profile_comment.csv')) {
+    const text = textOf(r); if (!text) continue;
+    add({
+      id: (r.id || '').trim(), kind: 'profile', target: r.profile_id ? `Profile #${r.profile_id}` : 'A profile',
+      slug: null, text, images: [], likes: toNum(r.nb_likes),
+      parentId: (r.parent_comment_id || '').trim().replace(/^0$/, ''), date: parseDate(r.created_at),
+    });
+  }
+  // comments-prod-comments.csv — newer movie/series comments (skip likes/reports/blank rows)
+  const byUuid = {};
+  for (const r of T('comments-prod-comments.csv')) {
+    if (r.type !== 'comment' && r.type !== 'reply') continue;
+    const text = textOf(r); if (!text) continue;
+    const isMovie = r.entity_type === 'movie';
+    const name = clean(isMovie ? r.movie_name : r.series_name);
+    const e = add({
+      id: '', uuid: (r.comment_uuid || r.uuid || '').trim(), kind: isMovie ? 'movie' : 'series',
+      target: name, slug: isMovie ? null : slugForShow(name), text, images: [],
+      likes: toNum(r.like_count), parentUuid: (r.parent_uuid || '').trim(),
+      date: parseDate(r.created_at),
+    });
+    if (e.uuid) byUuid[e.uuid] = e;
+  }
+
+  // Resolve reply parents where recoverable, and tag every reply.
+  for (const e of list) {
+    e.isReply = !!(e.parentId || e.parentUuid);
+    if (e.parentId && byId[e.parentId]) e.parent = byId[e.parentId];
+    else if (e.parentUuid && byUuid[e.parentUuid]) e.parent = byUuid[e.parentUuid];
+    else e.parent = null;
+  }
+
+  list.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+  const withImages = list.filter(e => e.images.length).length;
+  const imageCount = list.reduce((n, e) => n + e.images.length, 0);
+  return { list, withImages, imageCount };
+}
+
 /* ---------------- Stats ----------------
    stats-prod-cache.csv holds Go-serialized `map[...]` blobs of precomputed stats:
    biggest marathons, and episode/movie counts + hours per month. */
@@ -942,6 +1141,7 @@ const VIEWS = [
   { id: 'ratings',  label: 'Ratings',  icon: 'ph-star', render: renderRatings },
   { id: 'reactions', label: 'Reactions', icon: 'ph-heart', render: renderReactions },
   { id: 'lists',    label: 'Lists',    icon: 'ph-list-bullets', render: renderLists },
+  { id: 'comments', label: 'Comments', icon: 'ph-chat-circle-text', render: renderComments },
   { id: 'profile',  label: 'Profile',  icon: 'ph-user', render: renderProfile },
   { id: 'raw',      label: 'All data', icon: 'ph-database', render: renderRaw },
 ];
@@ -1020,12 +1220,33 @@ function buildSettingsMenu() {
     applyState(history.state || hashToState());
   });
 
+  // Comment-image backup: import a zip made by backup-images.sh; clear it.
+  const importItem = el('button', { class: 'menu-item' }, [el('span', { text: 'Import image backup' })]);
+  importItem.addEventListener('click', (e) => {
+    e.stopPropagation();
+    pickImageBackup((err, count) => {
+      importItem.firstChild.textContent = err ? (err.message || 'Import failed') : `Imported ${fmtInt(count)} ✓`;
+      setTimeout(() => { importItem.firstChild.textContent = 'Import image backup'; }, 1800);
+      if (!err) applyState(history.state || hashToState());
+    });
+  });
+  const importNote = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-info' }), el('span', { text: 'Make one with backup-images.sh (see README) so comment images survive TV Time shutting down.' })]);
+  const imgClear = el('button', { class: 'menu-item' }, [el('span', { text: 'Clear image backup' })]);
+  imgClear.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const n = await ImageBackup.clear();
+    imgClear.firstChild.textContent = n ? `Cleared ${fmtInt(n)} ✓` : 'Nothing stored';
+    setTimeout(() => { imgClear.firstChild.textContent = 'Clear image backup'; }, 1500);
+    applyState(history.state || hashToState());
+  });
+
   const changeItem = el('button', { class: 'menu-item' }, [el('span', { text: 'Change source .zip file' })]);
   changeItem.addEventListener('click', () => { close(); resetApp(); });
   const changeNote = el('div', { class: 'menu-note' }, [el('span', { text: 'Stored only in this browser. This removes it.' })]);
 
   pop.append(toggleItem, note, el('div', { class: 'menu-sep' }), clearItem,
     el('div', { class: 'menu-sep' }), movieToggle, movieNote, el('div', { class: 'menu-sep' }), movieClear,
+    el('div', { class: 'menu-sep' }), importItem, importNote, imgClear,
     el('div', { class: 'menu-sep' }), changeItem, changeNote);
   host.append(gear, pop);
 
@@ -1799,6 +2020,157 @@ function renderLists(root) {
     det.append(chips);
     root.append(det);
   }
+}
+
+/* ===================================================================
+   VIEW: Comments — your posts, with attached images
+   =================================================================== */
+
+// Ordered image sources to try for one attachment, best first:
+//   clean (no TV Time watermark) before marked, and a local backup before the live
+//   CDN copy within each. Ends with an "unavailable" placeholder.
+function imageCandidates(m) {
+  const out = [];
+  const add = (u) => { if (u && !out.includes(u)) out.push(u); };
+  add(ImageBackup.urlFor(m.id + '-clean'));   // local clean backup
+  add(m.clean);                               // live clean
+  add(ImageBackup.urlFor(m.id + '-marked'));  // local marked backup
+  add(ImageBackup.urlFor(m.id));              // legacy backups keyed by bare id (marked)
+  add(m.url);                                 // live marked
+  out.push(BROKEN_IMG);
+  return out;
+}
+
+function commentImageEl(m) {
+  const cands = imageCandidates(m);
+  let idx = 0;
+  const img = el('img', {
+    class: 'cmt-img', loading: 'lazy',
+    alt: m.kind === 'gif' ? 'Attached gif' : 'Attached image',
+    src: cands[0],
+  });
+  if (cands[0] === BROKEN_IMG) img.classList.add('broken');
+  // Walk down the list as sources fail (e.g. a retired server or a missing variant).
+  img.addEventListener('error', () => {
+    if (idx < cands.length - 1) { img.src = cands[++idx]; }
+    if (cands[idx] === BROKEN_IMG) img.classList.add('broken');
+  });
+  return el('button', {
+    class: 'cmt-img-btn', title: 'View image',
+    onclick: () => openLightbox(img.currentSrc || img.src),
+  }, [img]);
+}
+
+// Open a file picker for a backup zip and import it. cb(err, count) on completion.
+function pickImageBackup(cb) {
+  const inp = el('input', { type: 'file', accept: '.zip,application/zip', hidden: '' });
+  document.body.append(inp);
+  inp.addEventListener('change', async () => {
+    const f = inp.files && inp.files[0]; inp.remove();
+    if (!f) return;
+    try { cb(null, await ImageBackup.importZip(f)); }
+    catch (e) { cb(e); }
+  });
+  inp.click();
+}
+
+const COMMENT_ICON = { episode: 'ph-television', show: 'ph-television', series: 'ph-television', movie: 'ph-film-slate', profile: 'ph-user' };
+
+function renderComments(root) {
+  const c = STATE.model.comments;
+  const subtitle = c.imageCount
+    ? `${fmtInt(c.list.length)} comments · ${fmtInt(c.imageCount)} image${c.imageCount === 1 ? '' : 's'}`
+    : `${fmtInt(c.list.length)} comments`;
+
+  listView(root, {
+    title: 'Comments', subtitle, items: c.list, stateKey: 'comments',
+    searchText: (e) => `${e.text} ${e.target}`,
+    beforeList: c.imageCount ? (pre) => pre.append(commentBackupBanner()) : null,
+    filter: { default: 'all', options: [
+      { id: 'all', label: 'All comments', test: () => true },
+      { id: 'images', label: 'With image', test: e => e.images.length > 0 },
+      { id: 'episode', label: 'On episodes', test: e => e.kind === 'episode' },
+      { id: 'show', label: 'On shows', test: e => e.kind === 'show' || e.kind === 'series' },
+      { id: 'movie', label: 'On movies', test: e => e.kind === 'movie' },
+      { id: 'profile', label: 'On profiles', test: e => e.kind === 'profile' },
+      { id: 'replies', label: 'Replies', test: e => e.isReply },
+    ] },
+    sorts: [
+      { id: 'recent', label: 'Newest first', fn: (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0) },
+      { id: 'oldest', label: 'Oldest first', fn: (a, b) => (a.date?.getTime() || 0) - (b.date?.getTime() || 0) },
+      { id: 'likes', label: 'Most liked', fn: (a, b) => b.likes - a.likes },
+    ],
+    renderItem: (e) => {
+      // Header: what it's on (+ S..E.. for episodes), clickable to the show when known.
+      const label = e.kind === 'episode' && e.season
+        ? `${e.target} · S${pad2(e.season)}E${pad2(e.episode)}`
+        : (e.target || '—');
+      const targetEl = el('span', { class: 'cmt-target' + (e.slug ? ' clickable' : '') }, [
+        el('i', { class: 'ph ' + (COMMENT_ICON[e.kind] || 'ph-chat-circle-text') }), ' ' + label,
+      ]);
+      if (e.slug) targetEl.addEventListener('click', () => navigate({ view: 'shows', detail: e.slug }));
+
+      const kids = [el('div', { class: 'cmt-head' }, [targetEl, el('span', { class: 'cmt-date', text: fmtDate(e.date) })])];
+
+      if (e.isReply) {
+        kids.push(e.parent
+          ? el('div', { class: 'cmt-parent' }, [el('i', { class: 'ph ph-arrow-bend-up-left' }), el('span', { text: truncate(e.parent.text, 140) })])
+          : el('div', { class: 'cmt-parent muted' }, [el('i', { class: 'ph ph-arrow-bend-up-left' }), el('span', { text: 'Reply — original comment isn’t in the export' })]));
+      }
+
+      if (e.text) kids.push(el('div', { class: 'cmt-text', text: e.text }));
+      if (e.images.length) kids.push(el('div', { class: 'cmt-images' }, e.images.map(commentImageEl)));
+
+      const meta = [];
+      if (e.likes) meta.push(el('span', { html: `<i class="ph-fill ph-heart" style="color:var(--accent)"></i> ${fmtInt(e.likes)}` }));
+      if (e.images.length) meta.push(el('span', { html: `<i class="ph ph-image"></i> ${fmtInt(e.images.length)}` }));
+      if (meta.length) kids.push(el('div', { class: 'cmt-metaline' }, meta));
+
+      return el('article', { class: 'cmt' }, kids);
+    },
+    exportName: 'tvtime-comments',
+    exportRow: (e) => ({
+      date: e.date ? e.date.toISOString() : '', kind: e.kind, on: e.target,
+      season: e.season ?? '', episode: e.episode ?? '',
+      text: e.text, likes: e.likes, is_reply: e.isReply ? 'yes' : 'no',
+      images: e.images.map(m => m.url).join(' '),
+    }),
+  });
+}
+
+// Banner above the comments list: image status + one action.
+// With a backup loaded, images come from the local copy, so the action becomes
+// "Clear backup"; otherwise it's "Import backup".
+function commentBackupBanner() {
+  const wrap = el('div', { class: 'cmt-backup' });
+  const n = ImageBackup.count();
+
+  const status = el('div', { class: 'cmt-backup-status' }, [
+    el('div', { class: 'cmt-backup-title' }, [el('i', { class: 'ph ph-images' }), el('strong', { text: 'Comment images' })]),
+    el('p', {}, [n
+      ? `${fmtInt(n)} loaded from your local backup — they’ll keep working after TV Time goes offline.`
+      : 'Shown live from TV Time. Back them up before the servers close so they don’t break.']),
+    el('p', { class: 'muted small' }, n
+      ? ['Stored in this browser only. Re-import any time to refresh it.']
+      : ['Create a backup with ', el('code', { text: 'backup-images.sh' }), ' (see the README), then import the zip here.']),
+  ]);
+
+  // Redraw the whole view so images swap between local copies and live URLs.
+  const refresh = () => { if (STATE.view === 'comments') renderView('comments'); };
+
+  let btn;
+  if (n) {
+    btn = el('button', { class: 'btn secondary', html: '<i class="ph ph-trash"></i> Clear backup' });
+    btn.addEventListener('click', async () => { await ImageBackup.clear(); refresh(); });
+  } else {
+    btn = el('button', { class: 'btn secondary', html: '<i class="ph ph-upload-simple"></i> Import backup' });
+    btn.addEventListener('click', () => pickImageBackup((err) => {
+      if (err) { btn.innerHTML = '<i class="ph ph-warning"></i> ' + (err.message || 'Import failed'); return; }
+      refresh();
+    }));
+  }
+  wrap.append(status, btn);
+  return wrap;
 }
 
 /* ===================================================================
