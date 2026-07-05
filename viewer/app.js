@@ -1318,6 +1318,48 @@ function viewHead(root, title, subtitle) {
   root.append(el('div', { class: 'view-head' }, [el('h2', { text: title }), subtitle ? el('p', { text: subtitle }) : null]));
 }
 
+/* ---- Show poster + navigation helpers ----
+   Used by the summary sections (Overview, Stats, Reactions, Ratings) so each show
+   row can show its poster (auto-loaded when enrichment is on) and open its detail. */
+function knownShowSlug(title) {
+  const slug = slugify(title || '');
+  if (!slug) return null;
+  const m = STATE.model;
+  if (!m._showSlugs) m._showSlugs = new Set(m.shows.map(s => slugify(s.title)));
+  return m._showSlugs.has(slug) ? slug : null;
+}
+// A poster box that fills now if cached, else is tagged to be filled once the fetch lands.
+function autoPoster(title, seriesId) {
+  const box = el('div', { class: 'item-poster' });
+  const url = Enrichment.posterFor(title, seriesId);
+  if (url) box.append(el('img', { src: url, loading: 'lazy', alt: '' }));
+  else box.dataset.poster = Enrichment.resolveKey(title, seriesId);
+  return box;
+}
+function fillPostersIn(rootEl) {
+  for (const box of rootEl.querySelectorAll('.item-poster[data-poster]')) {
+    const v = Enrichment.getCached(box.dataset.poster);
+    if (v && v.img) { box.append(el('img', { src: v.img, loading: 'lazy', alt: '' })); box.removeAttribute('data-poster'); }
+  }
+}
+function ensureShowPosters(items) {
+  if (!Enrichment.enabled || !items.length) return;
+  const root = $('#viewRoot');
+  Enrichment.ensure(items, false).then(n => { if (n > 0) fillPostersIn(root); });
+}
+// A show row: optional poster + main/right content; navigates to the show when known.
+function showLineItem(title, seriesId, mainKids, rightKids) {
+  const slug = knownShowSlug(title);
+  const kids = [];
+  if (Enrichment.enabled) kids.push(autoPoster(title, seriesId));
+  kids.push(el('div', { class: 'item-main' }, mainKids));
+  if (rightKids && rightKids.length) kids.push(el('div', { class: 'item-right' }, rightKids));
+  const item = el('div', { class: 'item' + (slug ? ' clickable' : '') }, kids);
+  if (slug) { item.title = 'View episode progress'; item.addEventListener('click', () => navigate({ view: 'shows', detail: slug })); }
+  return item;
+}
+const showPosterItem = (title, seriesId) => ({ seriesId: seriesId || Enrichment.seriesIdByName[norm(title)] || '', title });
+
 /* ===================================================================
    VIEW: Overview
    =================================================================== */
@@ -1353,14 +1395,13 @@ function renderOverview(root) {
   const top = STATE.model.shows.filter(s => s.epWatched > 0).slice(0, 8);
   const list = el('div', { class: 'cards two-col' });
   for (const s of top) {
-    list.append(el('div', { class: 'item' }, [
-      el('div', { class: 'item-main' }, [
-        el('div', { class: 'item-title', text: s.title }),
-        el('div', { class: 'item-meta' }, [ el('span', { html: `<b>${fmtInt(s.epWatched)}</b> episodes` }), s.rating ? el('span', { html: `<i class="ph-fill ph-star" style="color:var(--accent)"></i> ${s.rating}` }) : null ]),
-      ]),
+    list.append(showLineItem(s.title, s.id, [
+      el('div', { class: 'item-title', text: s.title }),
+      el('div', { class: 'item-meta' }, [ el('span', { html: `<b>${fmtInt(s.epWatched)}</b> episodes` }), s.rating ? el('span', { html: `<i class="ph-fill ph-star" style="color:var(--accent)"></i> ${s.rating}` }) : null ]),
     ]));
   }
   root.append(top.length ? list : el('div', { class: 'empty', text: 'No watch data found.' }));
+  ensureShowPosters(top.map(s => showPosterItem(s.title, s.id)));
 
   root.append(el('div', { class: 'section-title', text: 'Recent activity' }));
   const recent = STATE.model.history.slice(0, 6);
@@ -1397,14 +1438,13 @@ function renderStats(root) {
     root.append(el('div', { class: 'section-title', text: 'Biggest marathons' }));
     const cards = el('div', { class: 'cards two-col' });
     for (const m of s.marathons) {
-      cards.append(el('div', { class: 'item' }, [
-        el('div', { class: 'item-main' }, [
-          el('div', { class: 'item-title', text: m.show }),
-          el('div', { class: 'item-meta' }, [el('span', { html: `<b>${fmtInt(m.episodes)}</b> episodes in <b>${fmtInt(m.days)}</b> day${m.days === 1 ? '' : 's'}` })]),
-        ]),
+      cards.append(showLineItem(m.show, null, [
+        el('div', { class: 'item-title', text: m.show }),
+        el('div', { class: 'item-meta' }, [el('span', { html: `<b>${fmtInt(m.episodes)}</b> episodes in <b>${fmtInt(m.days)}</b> day${m.days === 1 ? '' : 's'}` })]),
       ]));
     }
     root.append(cards);
+    ensureShowPosters(s.marathons.map(m => showPosterItem(m.show)));
   }
   if (s.epByMonth.length) {
     root.append(el('div', { class: 'section-title', text: 'Episodes watched per month' }));
@@ -1809,7 +1849,10 @@ function historyItem(ev) {
   kids.push(el('div', { class: 'item-right' }, [
     el('span', { class: 'badge ' + (ev.type === 'movie' ? 'warn' : 'accent'), html: ev.type === 'movie' ? '<i class="ph ph-film-slate"></i>' : '<i class="ph ph-television"></i>' }),
   ]));
-  return el('div', { class: 'item' }, kids);
+  const slug = ev.type === 'episode' ? knownShowSlug(ev.title) : null;
+  const item = el('div', { class: 'item' + (slug ? ' clickable' : '') }, kids);
+  if (slug) { item.title = 'View episode progress'; item.addEventListener('click', () => navigate({ view: 'shows', detail: slug })); }
+  return item;
 }
 
 function renderHistory(root) {
@@ -1904,6 +1947,7 @@ function renderRatings(root) {
   listView(root, {
     title: 'Ratings', subtitle: `${fmtInt(list.length)} rated shows`,
     items: list, searchKeys: ['title'], stateKey: 'ratings',
+    enrichShows: (slice) => slice.map(r => showPosterItem(r.title)),
     filter: { default: 'all', options: [
       { id: 'all', label: 'All scores', test: () => true },
       { id: '5', label: '5 ★', test: r => r.score === 5 },
@@ -1917,13 +1961,10 @@ function renderRatings(root) {
       { id: 'recent', label: 'Most recent', fn: (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0) },
       { id: 'az', label: 'A → Z', fn: (a, b) => a.title.localeCompare(b.title) },
     ],
-    renderItem: (r) => el('div', { class: 'item' }, [
-      el('div', { class: 'item-main' }, [
-        el('div', { class: 'item-title', text: r.title }),
-        el('div', { class: 'item-meta' }, [ r.date ? el('span', { text: fmtDate(r.date) }) : null ]),
-      ]),
-      el('div', { class: 'item-right' }, [ el('div', { class: 'rating-chip', html: `${r.score}<span class="star">★</span>` }) ]),
-    ]),
+    renderItem: (r) => showLineItem(r.title, null, [
+      el('div', { class: 'item-title', text: r.title }),
+      el('div', { class: 'item-meta' }, [ r.date ? el('span', { text: fmtDate(r.date) }) : null ]),
+    ], [ el('div', { class: 'rating-chip', html: `${r.score}<span class="star">★</span>` }) ]),
     exportName: 'tvtime-show-ratings',
     exportRow: (r) => ({ title: r.title, score: r.score, rated_at: r.date ? r.date.toISOString() : '' }),
   });
@@ -1951,10 +1992,10 @@ function renderReactions(root) {
       container.append(el('div', { class: 'section-title', text: 'Shows you reacted to most' }));
       const cards = el('div', { class: 'cards two-col' });
       for (const r of perShow.slice(0, 8)) {
-        cards.append(el('div', { class: 'item' }, [
-          el('div', { class: 'item-main' }, [ el('div', { class: 'item-title', text: titleByKey[r.key] || r.key }) ]),
-          el('div', { class: 'item-right' }, [ el('span', { class: 'badge accent', html: `<i class="ph ph-heart"></i> ${fmtInt(r.count)}` }) ]),
-        ]));
+        const title = titleByKey[r.key] || r.key;
+        cards.append(showLineItem(title, null,
+          [ el('div', { class: 'item-title', text: title }) ],
+          [ el('span', { class: 'badge accent', html: `<i class="ph ph-heart"></i> ${fmtInt(r.count)}` }) ]));
       }
       container.append(cards);
       container.append(el('div', { class: 'section-title', text: 'Every reaction' }));
@@ -1991,11 +2032,17 @@ function renderReactions(root) {
         ]),
       ]));
       kids.push(el('div', { class: 'item-right' }, [ r.reactionId != null ? el('span', { class: 'badge' + (FEELING_LABELS[r.reactionId] ? ' accent' : (/^ratings/.test(r.source) && STAR_LABELS[r.reactionId] ? ' warn' : '')), text: reactionChipText(r.reactionId, r.source) }) : null ]));
-      return el('div', { class: 'item' }, kids);
+      const slug = r.kind === 'episode' ? knownShowSlug(r.title) : null;
+      const item = el('div', { class: 'item' + (slug ? ' clickable' : '') }, kids);
+      if (slug) { item.title = 'View episode progress'; item.addEventListener('click', () => navigate({ view: 'shows', detail: slug })); }
+      return item;
     },
     exportName: 'tvtime-reactions',
     exportRow: (r) => ({ kind: r.kind, title: r.title, season: r.season, episode: r.episode, reaction_id: r.reactionId ?? '', feeling: FEELING_LABELS[r.reactionId] ? FEELING_LABELS[r.reactionId][1] : '', date: r.date ? r.date.toISOString() : '', source: r.source }),
   });
+
+  // Posters for the "reacted to most" summary (its cards live outside the paginated list).
+  ensureShowPosters(perShow.slice(0, 8).map(r => showPosterItem(titleByKey[r.key] || r.key)));
 }
 
 /* ===================================================================
