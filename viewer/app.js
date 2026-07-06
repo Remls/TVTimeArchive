@@ -241,6 +241,20 @@ const Backup = {
   urlFor(id) { return this.urls.get(String(id)) || null; },
 };
 
+/* -------------------------------------------------------------------
+   Extended-backup names (characters + friends) resolved by extended-backup.py and
+   kept in localStorage. Loaded at startup and refreshed on import.
+   ------------------------------------------------------------------- */
+const Extended = {
+  characters: {},   // show_character_id -> { id, name, actor_name, poster, votes }
+  friends: {},      // friend_id -> { id, name, username, avatar }
+  load() {
+    this.characters = {}; this.friends = {};
+    try { for (const c of JSON.parse(localStorage.getItem('tvt.characters') || '[]')) this.characters[String(c.id)] = c; } catch {}
+    try { for (const f of JSON.parse(localStorage.getItem('tvt.friends') || '[]')) this.friends[String(f.id)] = f; } catch {}
+  },
+};
+
 // Inline "image unavailable" placeholder — shown when an image is neither backed
 // up locally nor reachable on the (possibly retired) server.
 const BROKEN_IMG = 'data:image/svg+xml,' + encodeURIComponent(
@@ -268,11 +282,11 @@ function openLightbox(src) {
   document.body.append(overlay);
 }
 
-// A circular user avatar. Prefers a local backup (key "avatars/<userId>"), then the
-// live CloudFront picture, then initials — same local-then-live rule as other images.
-function avatarEl(url, name, userId, cls) {
+// A circular user avatar. Prefers a local backup (by full key, e.g. "avatars/<id>" or
+// "friends/<id>"), then the live CloudFront picture, then initials.
+function avatarEl(url, name, backupKey, cls) {
   const wrap = el('span', { class: 'avatar' + (cls ? ' ' + cls : '') });
-  const local = userId ? Backup.urlFor('avatars/' + userId) : null;
+  const local = backupKey ? Backup.urlFor(backupKey) : null;
   const src = local || (url || '').trim();
   const fallback = () => wrap.append(el('span', { class: 'avatar-fallback', text: (name || '').trim().slice(0, 1).toUpperCase() || '?' }));
   if (src) {
@@ -615,6 +629,7 @@ async function loadArchive(file, opts = {}) {
     tables[base] = { fields: parsed.meta.fields || [], rows: parsed.data || [] };
   }
   STATE.tables = tables;
+  Extended.load();   // imported character/friend names, if any
 
   try {
     STATE.model = buildModel(tables);
@@ -705,6 +720,10 @@ function buildModel(tables) {
 
   /* ---- Badges: user_badge.csv, grouped by badge type with art from notifications ---- */
   m.badges = buildBadges();
+
+  /* ---- Characters & Friends: ids from the export, names/images from the extended backup ---- */
+  m.characters = buildCharacters();
+  m.friends = buildFriends();
 
   /* ---- Stats: stats-prod-cache.csv (marathons, per-month charts) ---- */
   m.stats = buildStats();
@@ -1305,6 +1324,49 @@ function buildBadges() {
   return { list, total: rows.length };
 }
 
+/* ---------------- Characters ----------------
+   show_character_episode_vote.csv — the characters you voted for, per episode. Names /
+   actors / posters come from the extended backup (Extended.characters), else id only. */
+function buildCharacters() {
+  const byId = {};
+  for (const r of T('show_character_episode_vote.csv')) {
+    const id = (r.show_character_id || '').trim(); if (!id) continue;
+    const c = byId[id] || (byId[id] = { id, votes: [] });
+    c.votes.push({ show: r.tv_show_name || '', season: r.episode_season_number || '', episode: r.episode_number || '', date: parseDate(r.created_at) });
+  }
+  const list = Object.values(byId).map(c => {
+    const m = Extended.characters[c.id] || {};
+    c.votes.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+    const shows = [...new Set(c.votes.map(v => v.show).filter(Boolean))];
+    return { id: c.id, name: m.name || null, actor: m.actor_name || null, poster: m.poster || null,
+      votes: c.votes, shows, lastDate: c.votes[0]?.date || null };
+  });
+  list.sort((a, b) => (b.lastDate?.getTime() || 0) - (a.lastDate?.getTime() || 0));
+  return list;
+}
+
+/* ---------------- Friends ----------------
+   friend.csv — your friends (ids + affinity + since). Real names / avatars come from
+   the extended backup (Extended.friends), else id only. */
+function buildFriends() {
+  const list = [];
+  for (const r of T('friend.csv')) {
+    const id = (r.friend_id || '').trim(); if (!id) continue;
+    const m = Extended.friends[id] || {};
+    list.push({ id, name: m.name || null, username: m.username || null, avatar: m.avatar || null,
+      since: parseDate(r.created_at), affinity: toNum(r.affinity) });
+  }
+  list.sort((a, b) => (a.name || 'zzz~').localeCompare(b.name || 'zzz~'));
+  return list;
+}
+
+// After importing an extended backup: reload the resolved names and rebuild the two
+// affected models so the new names/images show without a full reload.
+function refreshExtended() {
+  Extended.load();
+  if (STATE.model) { STATE.model.characters = buildCharacters(); STATE.model.friends = buildFriends(); }
+}
+
 /* ---------------- Stats ----------------
    stats-prod-cache.csv holds Go-serialized `map[...]` blobs of precomputed stats:
    biggest marathons, and episode/movie counts + hours per month. */
@@ -1397,6 +1459,8 @@ const VIEWS = [
   { id: 'comments', label: 'Comments', icon: 'ph-chat-circle-text', render: renderComments },
   { id: 'notifications', label: 'Notifications', icon: 'ph-bell', render: renderNotifications },
   { id: 'badges',   label: 'Badges',   icon: 'ph-medal', render: renderBadges },
+  { id: 'characters', label: 'Characters', icon: 'ph-mask-happy', render: renderCharacters },
+  { id: 'friends',  label: 'Friends',  icon: 'ph-users', render: renderFriends },
   { id: 'profile',  label: 'Profile',  icon: 'ph-user', render: renderProfile },
   { id: 'raw',      label: 'All data', icon: 'ph-database', render: renderRaw },
 ];
@@ -1414,7 +1478,7 @@ function buildChrome() {
   for (const v of VIEWS) {
     // The Profile tab shows your avatar (when available) instead of the generic icon.
     const icon = (v.id === 'profile' && hasAvatar)
-      ? avatarEl(prof.avatar, prof.displayName, prof.userId, 'tab-avatar')
+      ? avatarEl(prof.avatar, prof.displayName, prof.userId && 'avatars/' + prof.userId, 'tab-avatar')
       : el('i', { class: 'ph ' + v.icon + ' tab-ico' });
     bar.append(el('button', {
       class: 'tab' + (v.id === STATE.view ? ' active' : ''),
@@ -1472,7 +1536,7 @@ function buildSettingsMenu() {
     pickBackup((err, count) => {
       importItem.firstChild.textContent = err ? (err.message || 'Import failed') : `Imported ${fmtInt(count)} ✓`;
       setTimeout(() => { importItem.firstChild.textContent = IMPORT_LABEL; }, 1800);
-      if (!err) applyState(history.state || hashToState());
+      if (!err) { refreshExtended(); applyState(history.state || hashToState()); }
     });
   });
   const importNote = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-info' }), el('span', {}, [
@@ -1623,7 +1687,7 @@ function renderOverview(root) {
   const title = p.displayName ? `${p.displayName}’s archive` : 'Overview';
   const subtitle = `Tracked since ${fmtDate(o.firstWatch)} · last activity ${fmtDate(o.lastWatch)}`;
   root.append(el('div', { class: 'view-head with-avatar' }, [
-    avatarEl(p.avatar, p.displayName, p.userId, 'lg'),
+    avatarEl(p.avatar, p.displayName, p.userId && 'avatars/' + p.userId, 'lg'),
     el('div', {}, [el('h2', { text: title }), el('p', { text: subtitle })]),
   ]));
 
@@ -2515,7 +2579,7 @@ function commentBackupBanner() {
     btn = el('button', { class: 'btn secondary', html: '<i class="ph ph-upload-simple"></i> Import backup' });
     btn.addEventListener('click', () => pickBackup((err) => {
       if (err) { btn.innerHTML = '<i class="ph ph-warning"></i> ' + (err.message || 'Import failed'); return; }
-      refresh();
+      refreshExtended(); refresh();
     }));
   }
   wrap.append(status, btn);
@@ -2555,7 +2619,7 @@ function renderNotifications(root) {
       const ref = n.img;
       const kids = [];
       if (ref && ref.kind === 'avatar') {
-        kids.push(avatarEl(ref.url, (n.text || '').split(/\s+/)[0], n.senderId, 'md'));
+        kids.push(avatarEl(ref.url, (n.text || '').split(/\s+/)[0], n.senderId && 'avatars/' + n.senderId, 'md'));
       } else if (ref) {
         kids.push(el('div', { class: 'notif-thumb' }, [resilientImg(ref.key, ref.url, { alt: '' })]));
       } else {
@@ -2634,6 +2698,101 @@ function renderBadges(root) {
 }
 
 /* ===================================================================
+   VIEW: Characters — characters you voted for (names/posters from the extended backup)
+   =================================================================== */
+// Prompt to import the extended backup when names/images haven't been resolved yet.
+function extendedNote(unresolved, total) {
+  if (!unresolved) return null;
+  return el('div', { class: 'cmt-backup' }, [
+    el('div', { class: 'cmt-backup-status' }, [
+      el('div', { class: 'cmt-backup-title' }, [el('i', { class: 'ph ph-info' }), el('strong', { text: 'Names & images' })]),
+      el('p', {}, [`${fmtInt(unresolved)} of ${fmtInt(total)} still show ids only. `,
+        el('a', { href: 'https://github.com/Remls/TVTimeArchive#extended-backup', target: '_blank', rel: 'noopener noreferrer', text: 'Generate an extended backup' }),
+        ' and import it (⚙) to fill these in.']),
+    ]),
+  ]);
+}
+
+function renderCharacters(root) {
+  const list = STATE.model.characters;
+  if (!list.length) {
+    viewHead(root, 'Characters', '');
+    root.append(el('div', { class: 'empty', text: 'No character votes in this archive.' }));
+    return;
+  }
+  const unresolved = list.filter(c => !c.name).length;
+  listView(root, {
+    title: 'Characters', subtitle: `${fmtInt(list.length)} voted for`, items: list, stateKey: 'characters', twoCol: true,
+    searchText: (c) => `${c.name || ''} ${c.actor || ''} ${c.shows.join(' ')}`,
+    beforeList: unresolved ? (pre) => pre.append(extendedNote(unresolved, list.length)) : null,
+    sorts: [
+      { id: 'recent', label: 'Recently voted', fn: (a, b) => (b.lastDate?.getTime() || 0) - (a.lastDate?.getTime() || 0) },
+      { id: 'votes', label: 'Most voted', fn: (a, b) => b.votes.length - a.votes.length },
+      { id: 'az', label: 'A → Z', fn: (a, b) => (a.name || 'zzz~').localeCompare(b.name || 'zzz~') },
+    ],
+    renderItem: (c) => {
+      const psrc = Backup.urlFor('characters/' + c.id) || c.poster || null;
+      const shows = el('div', { class: 'char-shows' }, c.shows.map(sn => {
+        const slug = knownShowSlug(sn);
+        const chip = el('span', { class: 'list-item-chip' + (slug ? ' clickable' : '') }, [el('i', { class: 'ph ph-television' }), ' ' + sn]);
+        if (slug) chip.addEventListener('click', () => navigate({ view: 'shows', detail: slug }));
+        return chip;
+      }));
+      return el('div', { class: 'item' }, [
+        zoomImg('item-poster', psrc, c.name || `Character #${c.id}`, c.poster),
+        el('div', { class: 'item-main' }, [
+          el('div', { class: 'item-title', text: c.name || `Character #${c.id}` }),
+          el('div', { class: 'item-meta' }, [
+            c.actor ? el('span', { text: c.actor }) : null,
+            el('span', { html: `<b>${fmtInt(c.votes.length)}</b> vote${c.votes.length === 1 ? '' : 's'}` }),
+            c.lastDate ? el('span', { text: fmtDate(c.lastDate) }) : null,
+          ]),
+          c.shows.length ? shows : null,
+        ]),
+      ]);
+    },
+    exportName: 'tvtime-characters',
+    exportRow: (c) => ({ id: c.id, name: c.name || '', actor: c.actor || '', shows: c.shows.join(' | '), votes: c.votes.length, last_voted: c.lastDate ? c.lastDate.toISOString() : '' }),
+  });
+}
+
+/* ===================================================================
+   VIEW: Friends — your friends (names/avatars from the extended backup)
+   =================================================================== */
+function renderFriends(root) {
+  const list = STATE.model.friends;
+  if (!list.length) {
+    viewHead(root, 'Friends', '');
+    root.append(el('div', { class: 'empty', text: 'No friends in this archive.' }));
+    return;
+  }
+  const unresolved = list.filter(f => !f.name).length;
+  listView(root, {
+    title: 'Friends', subtitle: `${fmtInt(list.length)} friends`, items: list, stateKey: 'friends', twoCol: true,
+    searchText: (f) => `${f.name || ''} ${f.username || ''}`,
+    beforeList: unresolved ? (pre) => pre.append(extendedNote(unresolved, list.length)) : null,
+    sorts: [
+      { id: 'az', label: 'A → Z', fn: (a, b) => (a.name || 'zzz~').localeCompare(b.name || 'zzz~') },
+      { id: 'affinity', label: 'Closest (affinity)', fn: (a, b) => b.affinity - a.affinity },
+      { id: 'recent', label: 'Recently added', fn: (a, b) => (b.since?.getTime() || 0) - (a.since?.getTime() || 0) },
+    ],
+    renderItem: (f) => el('div', { class: 'item' }, [
+      avatarEl(f.avatar, f.name || `#${f.id}`, 'friends/' + f.id, 'md'),
+      el('div', { class: 'item-main' }, [
+        el('div', { class: 'item-title', text: f.name || `Friend #${f.id}` }),
+        el('div', { class: 'item-meta' }, [
+          f.username ? el('span', { text: '@' + f.username }) : null,
+          f.since ? el('span', { text: `since ${fmtDate(f.since)}` }) : null,
+          f.affinity ? el('span', { text: `affinity ${fmtInt(f.affinity)}` }) : null,
+        ]),
+      ]),
+    ]),
+    exportName: 'tvtime-friends',
+    exportRow: (f) => ({ id: f.id, name: f.name || '', username: f.username || '', affinity: f.affinity, since: f.since ? f.since.toISOString() : '' }),
+  });
+}
+
+/* ===================================================================
    VIEW: Profile
    =================================================================== */
 function renderProfile(root) {
@@ -2645,7 +2804,7 @@ function renderProfile(root) {
   const hero = el('div', { class: 'profile-hero' + (hasCover ? '' : ' no-cover') });
   if (hasCover) hero.append(el('div', { class: 'profile-hero-bg', style: `background-image:url("${cover.replace(/"/g, '%22')}")` }));
   hero.append(el('div', { class: 'profile-hero-body' }, [
-    avatarEl(p.avatar, p.displayName, p.userId, 'xl'),
+    avatarEl(p.avatar, p.displayName, p.userId && 'avatars/' + p.userId, 'xl'),
     el('div', { class: 'profile-hero-name', text: p.displayName || '—' }),
     p.username && p.username !== p.displayName ? el('div', { class: 'profile-hero-sub', text: '@' + p.username }) : null,
   ]));

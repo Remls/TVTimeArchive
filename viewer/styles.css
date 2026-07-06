@@ -413,6 +413,7 @@ details.season[open] > summary::before { transform: rotate(90deg); }
 .ep-reactions { font-size: .72rem; color: var(--accent-hi); margin-top: 3px; overflow-wrap: anywhere; }
 .ep-rating { font-size: .72rem; color: var(--accent-2); font-weight: 600; margin-top: 3px; }
 .reaction-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.char-shows { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .count-badge { background: rgba(78,203,141,.14); color: var(--good); border: 1px solid rgba(78,203,141,.4); border-radius: 999px; padding: 3px 10px; font-size: .78rem; font-weight: 700; white-space: nowrap; }
 .count-badge.once { background: var(--surface-2); color: var(--text-dim); border-color: var(--line); }
 .unwatched-dot { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line); flex: 0 0 auto; }

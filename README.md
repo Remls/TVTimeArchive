@@ -68,6 +68,8 @@ visits; "Change source .zip file" in the ⚙ menu forgets it and clears local st
 | **Comments** | Every comment you posted, with attached images, likes, and reply threads |
 | **Notifications** | Read-only activity feed — likes, replies, mentions, follow requests, badges, and airing reminders, with avatars |
 | **Badges** | Badges you earned, grouped by type with counts and the shows that earned them |
+| **Characters** | Characters you voted for — actor, poster, and the show/episodes (names & posters from the [extended backup](#extended-backup)) |
+| **Friends** | Your friends — real names and avatars (from the [extended backup](#extended-backup)) |
 | **Profile** | Account details, avatar, and cover image |
 | **All data** | Browse, sort, filter, and export any CSV table in the archive |
 
