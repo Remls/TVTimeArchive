@@ -456,10 +456,18 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .detail-hero-text { min-width: 0; flex: 1; }
 .detail-hero-text h2 { margin: 0; font-size: 1.4rem; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .detail-poster { width: 78px; height: 112px; border-radius: 10px; overflow: hidden; flex: 0 0 auto;
+  display: grid; place-items: center;
   background: linear-gradient(160deg, var(--surface-2), var(--surface)); border: 1px solid var(--line); }
 .detail-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.detail-poster-icon { font-size: 2rem; color: var(--text-faint); opacity: .5; }
 .detail-sub { color: var(--text-dim); font-size: .88rem; margin: 10px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .detail-sub b { color: var(--text); }
+.detail-orig { color: var(--text-dim); font-size: .9rem; margin: 0 2px 10px; }
+.detail-dates { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 2px 6px; }
+.detail-date { color: var(--text-dim); font-size: .88rem; }
+.detail-date .ph { color: var(--text-faint); vertical-align: -.08em; }
+.detail-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 2px 6px; }
+.cmt-list { display: flex; flex-direction: column; gap: 10px; }
 
 .ep-thumb { width: 54px; height: 32px; border-radius: 6px; overflow: hidden; flex: 0 0 auto;
   background: linear-gradient(160deg, #2a231d, #1d1712); border: 1px solid var(--line); }

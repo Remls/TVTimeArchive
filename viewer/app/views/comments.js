@@ -59,6 +59,35 @@ export function pickBackup(cb) {
 
 export const COMMENT_ICON = { episode: 'ph-television', show: 'ph-television', series: 'ph-television', movie: 'ph-film-slate', profile: 'ph-user' };
 
+/* One comment, rendered as a card. Shared by the Comments view and the detail pages. */
+export function commentCard(e) {
+  const label = e.kind === 'episode' && e.season
+    ? `${e.target} S${pad2(e.season)}E${pad2(e.episode)}`
+    : (e.target || '—');
+  const targetEl = el('span', { class: 'cmt-target' + (e.slug ? ' clickable' : '') }, [
+    el('i', { class: 'ph ' + (COMMENT_ICON[e.kind] || 'ph-chat-circle-text') }), ' ' + label,
+  ]);
+  if (e.slug) targetEl.addEventListener('click', () => navigate({ view: 'shows', detail: e.slug }));
+
+  const kids = [el('div', { class: 'cmt-head' }, [targetEl, el('span', { class: 'cmt-date', text: fmtDate(e.date) })])];
+
+  if (e.isReply) {
+    kids.push(e.parent
+      ? el('div', { class: 'cmt-parent' }, [el('i', { class: 'ph ph-arrow-bend-up-left' }), el('span', { text: truncate(e.parent.text, 140) })])
+      : el('div', { class: 'cmt-parent muted' }, [el('i', { class: 'ph ph-arrow-bend-up-left' }), el('span', { text: 'Reply to a comment that isn’t in the export' })]));
+  }
+
+  if (e.text) kids.push(el('div', { class: 'cmt-text', text: e.text }));
+  if (e.images.length) kids.push(el('div', { class: 'cmt-images' }, e.images.map(commentImageEl)));
+
+  const meta = [];
+  if (e.likes) meta.push(el('span', { html: `<i class="ph-fill ph-heart" style="color:var(--accent)"></i> ${fmtInt(e.likes)}` }));
+  if (e.images.length) meta.push(el('span', { html: `<i class="ph ph-image"></i> ${fmtInt(e.images.length)}` }));
+  if (meta.length) kids.push(el('div', { class: 'cmt-metaline' }, meta));
+
+  return el('article', { class: 'cmt' }, kids);
+}
+
 export function renderComments(root) {
   const c = STATE.model.comments;
   const subtitle = c.imageCount
@@ -83,34 +112,7 @@ export function renderComments(root) {
       { id: 'oldest', label: 'Oldest first', fn: (a, b) => (a.date?.getTime() || 0) - (b.date?.getTime() || 0) },
       { id: 'likes', label: 'Most liked', fn: (a, b) => b.likes - a.likes },
     ],
-    renderItem: (e) => {
-      // Header: what it's on (+ S..E.. for episodes), clickable to the show when known.
-      const label = e.kind === 'episode' && e.season
-        ? `${e.target} S${pad2(e.season)}E${pad2(e.episode)}`
-        : (e.target || '—');
-      const targetEl = el('span', { class: 'cmt-target' + (e.slug ? ' clickable' : '') }, [
-        el('i', { class: 'ph ' + (COMMENT_ICON[e.kind] || 'ph-chat-circle-text') }), ' ' + label,
-      ]);
-      if (e.slug) targetEl.addEventListener('click', () => navigate({ view: 'shows', detail: e.slug }));
-
-      const kids = [el('div', { class: 'cmt-head' }, [targetEl, el('span', { class: 'cmt-date', text: fmtDate(e.date) })])];
-
-      if (e.isReply) {
-        kids.push(e.parent
-          ? el('div', { class: 'cmt-parent' }, [el('i', { class: 'ph ph-arrow-bend-up-left' }), el('span', { text: truncate(e.parent.text, 140) })])
-          : el('div', { class: 'cmt-parent muted' }, [el('i', { class: 'ph ph-arrow-bend-up-left' }), el('span', { text: 'Reply — original comment isn’t in the export' })]));
-      }
-
-      if (e.text) kids.push(el('div', { class: 'cmt-text', text: e.text }));
-      if (e.images.length) kids.push(el('div', { class: 'cmt-images' }, e.images.map(commentImageEl)));
-
-      const meta = [];
-      if (e.likes) meta.push(el('span', { html: `<i class="ph-fill ph-heart" style="color:var(--accent)"></i> ${fmtInt(e.likes)}` }));
-      if (e.images.length) meta.push(el('span', { html: `<i class="ph ph-image"></i> ${fmtInt(e.images.length)}` }));
-      if (meta.length) kids.push(el('div', { class: 'cmt-metaline' }, meta));
-
-      return el('article', { class: 'cmt' }, kids);
-    },
+    renderItem: commentCard,
     exportName: 'tvtime-comments',
     exportRow: (e) => ({
       date: e.date ? e.date.toISOString() : '', kind: e.kind, on: e.target,

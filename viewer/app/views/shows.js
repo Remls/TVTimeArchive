@@ -3,7 +3,7 @@ import { Enrichment } from '../core/enrich.js';
 import { zoomImg } from '../core/media.js';
 import { STATE } from '../core/state.js';
 import { $, el, fmtDate, fmtDateTime, fmtInt, norm, slugify } from '../core/util.js';
-import { emptyState, listView, posterCard, ratingChip, statusBadge } from '../ui/kit.js';
+import { detailScaffold, emptyState, listView, posterCard, ratingChip, statusBadge } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 
 export function renderShows(root) {
@@ -29,7 +29,7 @@ export function renderShows(root) {
     renderItem: (s) => posterCard({
       kind: 'show', title: s.title, seriesId: s.id,
       status: s.status, rating: s.rating,
-      sub: `${fmtInt(s.epWatched)} episodes`,
+      sub: `${fmtInt(s.epWatched)} episodes watched`,
       onClick: () => navigate({ view: 'shows', detail: slugify(s.title) }),
     }),
     exportName: 'tvtime-shows',
@@ -43,27 +43,16 @@ export function openShowDetail(show) {
   // Remember where the Shows list was scrolled so we can restore it on back.
   STATE.pendingScroll = { key: 'shows', y: window.scrollY || window.pageYOffset || 0 };
   const root = $('#viewRoot');
-  root.innerHTML = '';
-  window.scrollTo(0, 0);
-
-  root.append(el('div', { class: 'backbar' }, [
-    el('button', { class: 'back-btn', text: '‹ Back', onclick: () => history.back() }),
-  ]));
-  const poster = el('div', { class: 'detail-poster' });
-  const setPoster = (url, full) => { poster.innerHTML = ''; if (url) poster.append(zoomImg('detail-poster-fill', url, show.title, full)); };
-  root.append(el('div', { class: 'detail-hero' }, [
-    poster,
-    el('div', { class: 'detail-hero-text' }, [
-      el('h2', { text: show.title }),
-      el('div', { class: 'detail-sub' }, [
-        el('span', { html: `<b>${fmtInt(show.epWatched || 0)}</b> episodes watched` }),
-        show.rewatches ? el('span', { html: `<b>${fmtInt(show.rewatches)}</b> rewatches` }) : null,
-        show.emotionCount ? el('span', { html: `<i class="ph ph-heart"></i> ${fmtInt(show.emotionCount)}` }) : null,
-        show.rating ? ratingChip({ stars: show.rating, label: LEVEL_LABEL[show.rating] || '' }) : null,
-        statusBadge(show.status),
-      ]),
-    ]),
-  ]));
+  const { body, setPoster } = detailScaffold(root, {
+    title: show.title, kind: 'show',
+    subKids: [
+      el('span', { html: `<b>${fmtInt(show.epWatched || 0)}</b> episodes watched` }),
+      show.rewatches ? el('span', { html: `<b>${fmtInt(show.rewatches)}</b> rewatches` }) : null,
+      show.emotionCount ? el('span', { html: `<i class="ph ph-heart"></i> ${fmtInt(show.emotionCount)}` }) : null,
+      show.rating ? ratingChip({ stars: show.rating, label: LEVEL_LABEL[show.rating] || '' }) : null,
+      statusBadge(show.status),
+    ],
+  });
 
   // Per-episode watch dates (each watch + rewatch event) from history.
   const datesByEp = {};
@@ -86,8 +75,6 @@ export function openShowDetail(show) {
     if (r.kind === 'episode' && norm(r.title) === showKey) ratingByEp[`${r.season}|${r.episode}`] = r;
   }
 
-  const body = el('div');
-  root.append(body);
   const key = Enrichment.keyFor(show.id, show.title);
 
   const load = () => {

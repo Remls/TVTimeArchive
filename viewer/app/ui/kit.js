@@ -1,10 +1,38 @@
 import { Enrichment, MovieMeta } from '../core/enrich.js';
+import { zoomImg } from '../core/media.js';
 import { STATE, UI } from '../core/state.js';
 import { $, download, el, fmtInt, norm, slugify, toCSV } from '../core/util.js';
 import { navigate } from './router.js';
 
 export function viewHead(root, title, subtitle) {
   root.append(el('div', { class: 'view-head' }, [el('h2', { text: title }), subtitle ? el('p', { text: subtitle }) : null]));
+}
+
+/* Shared detail-page scaffold for shows and movies: a back bar, a hero (poster with a
+   fallback kind icon + async setPoster, title, sub row), and an empty body to fill.
+   Returns { body, setPoster } so each caller appends its own content. */
+export function detailScaffold(root, { title, kind, subKids }) {
+  root.innerHTML = '';
+  window.scrollTo(0, 0);
+  root.append(el('div', { class: 'backbar' }, [
+    el('button', { class: 'back-btn', text: '‹ Back', onclick: () => history.back() }),
+  ]));
+  const icon = () => el('i', { class: 'ph ' + (kind === 'movie' ? 'ph-film-slate' : 'ph-television') + ' detail-poster-icon' });
+  const poster = el('div', { class: 'detail-poster' }, [icon()]);
+  root.append(el('div', { class: 'detail-hero' }, [
+    poster,
+    el('div', { class: 'detail-hero-text' }, [
+      el('h2', { text: title }),
+      el('div', { class: 'detail-sub' }, (subKids || []).filter(Boolean)),
+    ]),
+  ]));
+  const body = el('div');
+  root.append(body);
+  const setPoster = (url, full) => {
+    poster.innerHTML = '';
+    poster.append(url ? zoomImg('detail-poster-fill', url, title, full) : icon());
+  };
+  return { body, setPoster };
 }
 
 /* ---- Show poster + navigation helpers ----
