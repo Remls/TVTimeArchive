@@ -18,12 +18,12 @@ export function renderHome(root) {
     // single-accent: only the hero stat (total time in TV) is coral; the rest read neutral
     ['episodesWatched', 'Episodes watched', o.episodesWatched, '', null],
     ['moviesWatched', 'Movies watched', o.moviesWatched, '', null],
-    ['seriesRuntime', 'Time in TV', fmtDuration(o.seriesRuntime), 'accent', 'series runtime'],
-    ['moviesRuntime', 'Time in film', fmtDuration(o.moviesRuntime), 'accent', 'movie runtime'],
-    ['showsFollowed', 'Shows followed', fmtInt(o.showsFollowed), '', `${fmtInt(o.showsTracked)} tracked total`],
+    ['seriesRuntime', 'Time in TV', fmtDuration(o.seriesRuntime), 'accent', null],
+    ['moviesRuntime', 'Time in film', fmtDuration(o.moviesRuntime), 'accent', null],
+    ['showsTracked', 'Shows tracked', fmtInt(o.showsTracked), '', null],
     ['moviesTracked', 'Movies tracked', fmtInt(o.moviesTracked), '', null],
     ['reactionsLogged', 'Reactions logged', fmtInt(o.reactionsLogged), '', null],
-    ['ratingsLogged', 'Ratings given', fmtInt(o.ratingsLogged), '', 'shows, movies, episodes'],
+    ['ratingsLogged', 'Ratings given', fmtInt(o.ratingsLogged), '', null],
   ];
   const grid = el('div', { class: 'stat-grid' });
   for (const [, label, value, cls, sub] of cards) {

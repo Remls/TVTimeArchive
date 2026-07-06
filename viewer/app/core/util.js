@@ -46,9 +46,13 @@ export const fmtInt = (n) => (n || 0).toLocaleString();
 export function fmtDuration(seconds) {
   seconds = Math.round(toNum(seconds));
   if (!seconds) return '0m';
-  const d = Math.floor(seconds / 86400);
+  const MONTH = 30 * 86400;   // approximate; months = 30 days
+  const mo = Math.floor(seconds / MONTH);
+  const d = Math.floor((seconds % MONTH) / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
+  // Drop leading zero units; once a larger unit shows, keep the smaller ones (incl. 0).
+  if (mo > 0) return `${mo}mo ${d}d ${h}h`;
   if (d > 0) return `${d}d ${h}h`;
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
