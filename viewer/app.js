@@ -71,32 +71,58 @@ function toCSV(rows) {
 }
 
 /* -------------------------------------------------------------------
-   Reaction id → label decoding.
-   TV Time's finish-episode "HOW DID YOU FEEL?" set maps to ids 28–39 in the
-   current taxonomy, in on-screen display order. Verified against
-   The Dangers in My Heart S2E10 (ids 32/33/37 = Touched/Amused/Thrilled) and
-   S2E13 (all twelve feelings selected → ids 28–39).
-   Older-era ids (1–8, 18–20) and the dominant "3" (the "WOW" 5★ rating) are
-   left undecoded pending confirmation — shown as "#id".
+   Reaction decoding — static, offline (no API needed).
+   TV Time reused numeric ids across ~10 versioned "sets" over the years, so an id's
+   meaning depends on whether it's a RATING (ratings-* vote files) or an EMOTION
+   (emotions-* / episode_emotion). These tables were captured from TV Time's own
+   emotion/rating set catalogs (msapi.tvtime.com/live/v1/{emotions,ratings}/sets/…).
    ------------------------------------------------------------------- */
-const FEELING_LABELS = {
-  // ✔ = confirmed in-app by the user; others inferred from display order (all confirmed
-  // ones matched that order, so confidence in the rest is high).
-  28: ['😵', 'Shocked'],    29: ['😤', 'Frustrated'], 30: ['😭', 'Sad'],        31: ['🤔', 'Reflective'], // 28✔ 30✔
-  32: ['🥺', 'Touched'],    33: ['😆', 'Amused'],     34: ['😱', 'Scared'],     35: ['😑', 'Bored'],      // 32✔ 33✔
-  36: ['😌', 'Understood'], 37: ['🤩', 'Thrilled'],   38: ['🙃', 'Confused'],   39: ['😬', 'Tense'],      // 37✔ 38✔
+
+// Ratings: one 5-level star scale, shared by episodes, movies AND shows. Different app
+// eras used different ids for the same level (anchored by TV Time's stable `old_id`:
+// old7=bad, old6=meh, old8=okay, old1=good, old3=wow).  id -> [stars 1-5, label]
+const RATING_LABELS = {
+  1: [1, 'Bad'],  16: [1, 'Bad'],
+  2: [2, 'Meh'],  17: [2, 'Meh'],  27: [2, 'Meh'],
+  4: [3, 'Okay'], 18: [3, 'Okay'], 28: [3, 'Okay'],
+  5: [4, 'Good'], 19: [4, 'Good'], 29: [4, 'Good'],
+  3: [5, 'Wow'],  20: [5, 'Wow'],
 };
-// Star-rating ids confirmed in-app: 3 and 19 both = WOW (5★). WOW is encoded with
-// different ids across app versions; lower star levels remain unmapped.
-const STAR_LABELS = { 3: '★★★★★ WOW', 19: '★★★★★ WOW' };
+
+// Emotions: the modern "How did you feel?" 12-set (ids 28-39) plus the older
+// emoji-grid reactions (ids 2-27) that predate it.  id -> [emoji, label]
+const EMOTION_LABELS = {
+  28: ['😵', 'Shocked'], 29: ['😤', 'Frustrated'], 30: ['😭', 'Sad'],       31: ['🤔', 'Reflective'],
+  32: ['🥺', 'Touched'], 33: ['😆', 'Amused'],     34: ['😱', 'Scared'],    35: ['😑', 'Bored'],
+  36: ['😌', 'Understood'], 37: ['🤩', 'Thrilled'], 38: ['🙃', 'Confused'], 39: ['😬', 'Tense'],
+  // legacy emoji-grid reactions (custom / android / native grids)
+  2: ['😠', 'Angry'],    4: ['😑', 'Bored'],    5: ['🙃', 'Confused'],  6: ['🤩', 'Excited'],
+  7: ['😀', 'Happy'],    10: ['😭', 'Sad'],     11: ['😱', 'Scared'],   12: ['😵', 'Shocked'],
+  13: ['😀', 'Happy'],   14: ['🙃', 'Confused'], 15: ['😭', 'Sad'],     16: ['😱', 'Scared'],
+  17: ['😠', 'Angry'],   18: ['😵', 'Shocked'],  19: ['🤩', 'Excited'], 20: ['😑', 'Bored'],
+  21: ['🙃', 'Confusing'], 22: ['😱', 'Scary'], 23: ['😤', 'Frustrating'], 24: ['😵', 'Shocking'],
+  25: ['🤩', 'Exciting'], 26: ['😑', 'Boring'], 27: ['😤', 'Frustrated'],
+};
+
+const STARS = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
+
+// Is this reaction a star rating (vs an emotion)? Decided by its source file.
+const isRatingSource = (source = '') => /^ratings/.test(source);
 function reactionChipText(id, source = '') {
   if (id == null) return null;
-  const f = FEELING_LABELS[id];
-  if (f) return `${f[0]} ${f[1]}`;
-  // Star ids only mean WOW inside the rating files; the same id can be a legacy
-  // feeling in episode_emotion, so scope the star label to rating sources.
-  if (/^ratings/.test(source) && STAR_LABELS[id]) return STAR_LABELS[id];
-  return `reaction #${id}`;
+  if (isRatingSource(source)) {
+    const r = RATING_LABELS[id];
+    return r ? `${STARS(r[0])} ${r[1]}` : `rating #${id}`;
+  }
+  const e = EMOTION_LABELS[id];
+  return e ? `${e[0]} ${e[1]}` : `reaction #${id}`;
+}
+// vote_key is "<entityId>-<userId>-<reactionId>"; take the segment after the user id.
+function reactionIdFromKey(key, uid) {
+  const p = String(key || '').split('-');
+  const i = p.lastIndexOf(String(uid));
+  const seg = (i >= 0 && i + 1 < p.length) ? p[i + 1] : p[p.length - 1];
+  return /^\d+$/.test(seg) ? Number(seg) : null;
 }
 
 /* -------------------------------------------------------------------
@@ -638,26 +664,26 @@ function buildModel(tables) {
   /* ---- Profile: user.csv + user_personal_data.csv + user_tv_show_data.csv ---- */
   m.profile = buildProfile();
 
-  /* ---- Show star ratings: tv_show_rate.csv (genuine 1–5 scale) ---- */
-  m.showRatings = buildShowRatings();
+  /* ---- History: v2 watch/rewatch episodes + movie watches + rewatched_episode.
+     Built early so ratings can borrow watch dates (the ratings files carry none). ---- */
+  m.history = buildHistory();
 
-  /* ---- Reactions: the ratings-* and emotions-* vote files + episode_emotion.csv.
-     NOTE: TV Time's "vote_key" encodes a reaction id (its finish-episode sticker),
-     not a numeric star score — the dominant id "3" matches the emotion tables and
-     ids run up to 33, so these are reactions, not ratings. See buildReactions(). ---- */
-  m.reactions = buildReactions();
+  /* ---- Ratings: the 5-level star scale for shows (tv_show_rate) + episodes/movies
+     (ratings-* vote files). Decoded via RATING_LABELS. See buildRatings(). ---- */
+  m.ratings = buildRatings(m.history);
+
+  /* ---- Reactions: the "how did you feel?" emotions only (emotions-* + episode_emotion);
+     star ratings are handled by buildRatings(). ---- */
+  m.reactions = buildReactions(m.history);
 
   /* ---- Per-show reaction totals: tv_show_user_emotion_count.csv ---- */
   m.emotionPerShow = buildEmotionPerShow();
 
-  /* ---- History: v2 watch/rewatch episodes + movie watches + rewatched_episode ---- */
-  m.history = buildHistory();
+  /* ---- Shows: followed_tv_show + v2 user-series + ratings + reactions + addiction + seen ---- */
+  m.shows = buildShows(m.ratings, m.reactions, m.emotionPerShow, m.history);
 
-  /* ---- Shows: followed_tv_show + v2 user-series + tv_show_rate + reactions + addiction + seen ---- */
-  m.shows = buildShows(m.showRatings, m.reactions, m.emotionPerShow, m.history);
-
-  /* ---- Movies: tracking-prod-records(entity=movie) + reaction votes ---- */
-  m.movies = buildMovies(m.reactions, m.history);
+  /* ---- Movies: tracking-prod-records(entity=movie) + ratings + reaction votes ---- */
+  m.movies = buildMovies(m.reactions, m.ratings, m.history);
 
   /* ---- Lists: lists-prod-lists.csv (collection + per-list items, titles resolved) ---- */
   m.lists = buildLists();
@@ -718,62 +744,115 @@ function buildProfile() {
 
 /* ---------------- Show star ratings ----------------
    tv_show_rate.csv — the only genuine numeric rating (1–5 scale). */
-function buildShowRatings() {
-  const list = [];
-  for (const r of T('tv_show_rate.csv')) {
-    if (!r.tv_show_name) continue;
-    list.push({ title: r.tv_show_name, score: toNum(r.rating), date: parseDate(r.created_at) });
+/* ---------------- Ratings ----------------
+   The 5-level star rating (Bad/Meh/Okay/Good/Wow) the user gave — the SAME scale for
+   shows, movies and episodes. Show-level from tv_show_rate.csv; episode/movie from the
+   ratings-* vote files (id decoded via RATING_LABELS, scoped to rating sources). One
+   rating per entity — the export keeps historical clicks, so on conflict keep highest. */
+const LEVEL_LABEL = [null, 'Bad', 'Meh', 'Okay', 'Good', 'Wow'];
+// episode_emotion.csv is TV Time's OLD combined table — it stores the rating in the
+// same emotion_id field, using the original id scheme (old7=bad … old3=wow). Ids that
+// aren't emotions are these ratings. id -> [stars, label].
+const OLD_EMOTION_RATING = { 7: [1, 'Bad'], 6: [2, 'Meh'], 8: [3, 'Okay'], 1: [4, 'Good'], 3: [5, 'Wow'] };
+
+// Latest watch date per episode / movie — used as the "rated/reacted on" proxy since
+// the vote files carry no timestamp of their own.
+function watchDates(history) {
+  const ep = {}, mv = {};
+  for (const e of history || []) {
+    if (!e.date) continue;
+    if (e.type === 'episode') { const k = `${norm(e.title)}|${e.season}|${e.episode}`; if (!ep[k] || e.date > ep[k]) ep[k] = e.date; }
+    else if (e.type === 'movie') { const k = norm(e.title); if (!mv[k] || e.date > mv[k]) mv[k] = e.date; }
   }
-  const byTitle = {};
-  for (const r of list) byTitle[norm(r.title)] = r.score;
-  list.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
-  return { list, byTitle };
+  return { ep, mv };
 }
 
-/* ---------------- Reactions ----------------
-   The finish-episode / finish-movie "reaction" the user left, from the vote files.
-   vote_key format is "<entityId>-<userId>-<reactionId>"; the segment AFTER the
-   user id is the reaction id (small clustered ids matching the emotion tables —
-   NOT a star score). Also folds in per-episode reactions from episode_emotion.csv.
-   Sources: ratings-3/prod/live/v2 votes, emotions-3/live/v2 votes, episode_emotion. */
-function buildReactions() {
-  const reactionAfterUser = (key, uid) => {
-    const p = String(key || '').split('-');
-    const i = p.lastIndexOf(String(uid));
-    const seg = (i >= 0 && i + 1 < p.length) ? p[i + 1] : p[p.length - 1];
-    return /^\d+$/.test(seg) ? Number(seg) : null;
-  };
+function buildRatings(history) {
+  const shows = {}, movies = {}, eps = {};   // keyed lookups; value = { stars, label, ... }
+  const put = (bucket, k, meta) => { if (!bucket[k] || meta.stars > bucket[k].stars) bucket[k] = meta; };
+  const { ep: epWatch, mv: movieWatch } = watchDates(history);
+
+  const ratingFiles = ['ratings-3-prod-episode_votes.csv', 'ratings-prod-episode_votes.csv', 'ratings-live-votes.csv', 'ratings-v2-prod-votes.csv'];
+  for (const f of ratingFiles) {
+    for (const r of T(f)) {
+      const rl = RATING_LABELS[reactionIdFromKey(r.vote_key, r.user_id)];
+      if (!rl) continue;
+      const base = { stars: rl[0], label: rl[1] };
+      if (r.movie_name) put(movies, norm(r.movie_name), { ...base, kind: 'movie', title: r.movie_name, date: movieWatch[norm(r.movie_name)] || null });
+      else if (r.series_name) { const k = `${norm(r.series_name)}|${r.season_number || ''}|${r.episode_number || ''}`;
+        put(eps, k, { ...base, kind: 'episode', title: r.series_name, season: r.season_number || '', episode: r.episode_number || '', date: epWatch[k] || null }); }
+    }
+  }
+  // Old show-level 1–5 star rating (this one has a real timestamp).
+  for (const r of T('tv_show_rate.csv')) {
+    if (!r.tv_show_name) continue;
+    const stars = Math.max(1, Math.min(5, Math.round(toNum(r.rating))));
+    put(shows, norm(r.tv_show_name), { kind: 'show', title: r.tv_show_name, stars, label: LEVEL_LABEL[stars] || '', date: parseDate(r.created_at) });
+  }
+  // Ratings hidden in the old episode_emotion table (ids that aren't emotions).
+  for (const r of T('episode_emotion.csv')) {
+    if (!r.tv_show_name) continue;
+    const id = toNum(r.emotion_id) || null;
+    if (EMOTION_LABELS[id]) continue;          // it's a feeling → handled by buildReactions
+    const rl = OLD_EMOTION_RATING[id]; if (!rl) continue;
+    const k = `${norm(r.tv_show_name)}|${r.episode_season_number || ''}|${r.episode_number || ''}`;
+    put(eps, k, { stars: rl[0], label: rl[1], kind: 'episode', title: r.tv_show_name, season: r.episode_season_number || '', episode: r.episode_number || '', date: parseDate(r.created_at) || epWatch[k] || null });
+  }
+
+  const list = [...Object.values(shows), ...Object.values(movies), ...Object.values(eps)]
+    .sort((a, b) => b.stars - a.stars || a.title.localeCompare(b.title));
+  return { list, epByKey: eps, movieByTitle: movies, showByTitle: shows };
+}
+
+/* ---------------- Reactions (emotions) ----------------
+   The "how did you feel?" emotions — feelings only (star ratings live in buildRatings).
+   Sources: emotions-3/v2 votes, emotions-live (movies), episode_emotion. */
+function buildReactions(history) {
   const list = [];
-  const voteFiles = [
-    'ratings-3-prod-episode_votes.csv', 'ratings-prod-episode_votes.csv',
-    'ratings-live-votes.csv', 'ratings-v2-prod-votes.csv',
-    'emotions-3-prod-episode_votes.csv', 'emotions-v2-prod-votes.csv',
-  ];
-  for (const f of voteFiles) {
+  for (const f of ['emotions-3-prod-episode_votes.csv', 'emotions-v2-prod-votes.csv']) {
     for (const r of T(f)) {
       const title = r.series_name || r.movie_name;
       if (!title) continue;
-      list.push({
-        kind: r.movie_name ? 'movie' : 'episode', title,
-        season: r.season_number || '', episode: r.episode_number || '',
-        reactionId: reactionAfterUser(r.vote_key, r.user_id), date: null, source: f.replace('.csv', ''),
-      });
+      list.push({ kind: r.movie_name ? 'movie' : 'episode', title, season: r.season_number || '', episode: r.episode_number || '',
+        reactionId: reactionIdFromKey(r.vote_key, r.user_id), date: null, source: f.replace('.csv', '') });
     }
   }
-  // movie reaction votes (emotions-live)
   for (const r of T('emotions-live-votes.csv')) {
     if (!r.movie_name) continue;
-    list.push({ kind: 'movie', title: r.movie_name, season: '', episode: '', reactionId: reactionAfterUser(r.vote_key, r.user_id), date: null, source: 'emotions-live' });
+    list.push({ kind: 'movie', title: r.movie_name, season: '', episode: '', reactionId: reactionIdFromKey(r.vote_key, r.user_id), date: null, source: 'emotions-live' });
   }
-  // per-episode reactions recorded with timestamps
   for (const r of T('episode_emotion.csv')) {
     if (!r.tv_show_name) continue;
-    list.push({ kind: 'episode', title: r.tv_show_name, season: r.episode_season_number || '', episode: r.episode_number || '', reactionId: toNum(r.emotion_id) || null, date: parseDate(r.created_at), source: 'episode_emotion' });
+    const id = toNum(r.emotion_id) || null;
+    if (!EMOTION_LABELS[id]) continue;   // ids that aren't feelings are old ratings → buildRatings
+    list.push({ kind: 'episode', title: r.tv_show_name, season: r.episode_season_number || '', episode: r.episode_number || '', reactionId: id, date: parseDate(r.created_at), source: 'episode_emotion' });
   }
 
-  const countByTitle = {};
-  for (const r of list) { const k = norm(r.title); countByTitle[k] = (countByTitle[k] || 0) + 1; }
-  return { list, countByTitle };
+  // The emotion vote files carry no timestamp; borrow the latest watch date as a proxy
+  // (a reaction is left right after watching). episode_emotion keeps its real date.
+  const { ep: epWatch, mv: movieWatch } = watchDates(history);
+  for (const r of list) {
+    if (r.date) continue;
+    r.date = (r.kind === 'movie' ? movieWatch[norm(r.title)] : epWatch[`${norm(r.title)}|${r.season}|${r.episode}`]) || null;
+  }
+
+  // Per-entity decoded-label lookups (Movie / Show detail) + a grouped view where each
+  // episode/movie is one row carrying all its feeling chips.
+  const epByKey = {}, movieByTitle = {}, countByTitle = {}, byEntity = {};
+  for (const r of list) {
+    countByTitle[norm(r.title)] = (countByTitle[norm(r.title)] || 0) + 1;
+    const label = reactionChipText(r.reactionId, r.source);
+    if (!label) continue;
+    if (r.kind === 'movie') (movieByTitle[norm(r.title)] ||= new Set()).add(label);
+    else (epByKey[`${norm(r.title)}|${r.season}|${r.episode}`] ||= new Set()).add(label);
+
+    const key = r.kind === 'movie' ? `m|${norm(r.title)}` : `e|${norm(r.title)}|${r.season}|${r.episode}`;
+    const g = byEntity[key] || (byEntity[key] = { kind: r.kind, title: r.title, season: r.season, episode: r.episode, reactions: [], _seen: new Set(), date: null });
+    if (!g._seen.has(label)) { g._seen.add(label); g.reactions.push(label); }
+    if (r.date && (!g.date || r.date > g.date)) g.date = r.date;
+  }
+  const grouped = Object.values(byEntity).map(g => { delete g._seen; return g; });
+  return { list, grouped, countByTitle, epByKey, movieByTitle };
 }
 
 /* ---------------- Per-show reaction totals ----------------
@@ -837,7 +916,7 @@ function buildHistory() {
      show_addiction_score.csv    -> engagement score
      seen_episode_source.csv     -> seen-episode count
    Watched-episode counts are also cross-checked against the history timeline. */
-function buildShows(showRatings, reactions, emotionPerShow, history) {
+function buildShows(ratings, reactions, emotionPerShow, history) {
   const shows = {};
   const get = (title) => {
     const k = norm(title);
@@ -872,8 +951,8 @@ function buildShows(showRatings, reactions, emotionPerShow, history) {
     s.sources.add('tracking-v2');
   }
 
-  // genuine show star ratings (tv_show_rate)
-  for (const [k, score] of Object.entries(showRatings.byTitle)) if (shows[k]) shows[k].rating = score;
+  // show-level star rating (tv_show_rate)
+  for (const [k, r] of Object.entries(ratings.showByTitle)) if (shows[k]) shows[k].rating = r.stars;
 
   // per-show reaction totals (prefer TV Time's own tally, else count from reactions list)
   for (const [k, count] of Object.entries(emotionPerShow)) if (shows[k]) shows[k].emotionCount = count;
@@ -914,11 +993,11 @@ function buildShows(showRatings, reactions, emotionPerShow, history) {
    Source of truth: tracking-prod-records.csv (entity_type == movie).
    A movie's rows are grouped by uuid: follow row + watch row(s) + rewatch_count row.
    Reaction votes merged by normalized title (movies have no numeric star rating). */
-function buildMovies(reactions, history) {
+function buildMovies(reactions, ratings, history) {
   const movies = {};
   const get = (title, uuid) => {
     const k = norm(title);
-    return (movies[k] ||= { title, uuid, watched: false, watchCount: 0, rewatches: 0, runtime: 0, followedAt: null, watchedAt: null, watchDates: [], status: null, reacted: false, sources: new Set() });
+    return (movies[k] ||= { title, uuid, watched: false, watchCount: 0, rewatches: 0, runtime: 0, followedAt: null, watchedAt: null, watchDates: [], status: null, reacted: false, rating: null, reactions: [], sources: new Set() });
   };
 
   for (const r of T('tracking-prod-records.csv')) {
@@ -936,12 +1015,17 @@ function buildMovies(reactions, history) {
     if (nonEmpty(r.watch_count)) mv.watchCount = Math.max(mv.watchCount, toNum(r.watch_count));
   }
 
-  // movie reaction votes — surface movies that only appear as a reaction, and flag the rest
-  const movieReactions = reactions.list.filter(r => r.kind === 'movie');
-  for (const r of movieReactions) {
-    const k = norm(r.title);
-    if (!movies[k]) movies[k] = { title: r.title, watched: true, watchCount: 0, rewatches: 0, runtime: 0, followedAt: null, watchedAt: null, watchDates: [], status: 'reacted', reacted: true, sources: new Set(['reactions']) };
-    else { movies[k].reacted = true; movies[k].sources.add('reactions'); }
+  // Surface movies that only appear as a reaction or rating, and flag/annotate the rest.
+  for (const r of reactions.list.filter(r => r.kind === 'movie')) { get(r.title).reacted = true; get(r.title).sources.add('reactions'); }
+  for (const [k, rt] of Object.entries(ratings.movieByTitle)) {
+    if (!movies[k]) get(rt.title);
+    movies[k].rating = rt; movies[k].sources.add('ratings');
+  }
+  // Decoded feeling labels per movie.
+  for (const [k, set] of Object.entries(reactions.movieByTitle)) if (movies[k]) movies[k].reactions = [...set];
+  for (const mv of Object.values(movies)) {
+    if (mv.rating && !mv.status) mv.status = 'reacted';
+    if (mv.reacted && !mv.status) mv.status = 'reacted';
   }
 
   for (const mv of Object.values(movies)) { mv.sources = [...mv.sources]; mv.watchDates.sort((a, b) => (a ? a.getTime() : 0) - (b ? b.getTime() : 0)); }
@@ -1283,7 +1367,7 @@ function buildOverview(m) {
     showsFollowed:   toNum(statsRow.series_follow_count) || m.shows.filter(s => s.status === 'following').length,
     showsTracked:    m.shows.length,
     moviesTracked:   m.movies.length,
-    showRatings:     m.showRatings.list.length,
+    ratingsLogged:   m.ratings.list.length,
     reactionsLogged: m.reactions.list.length,
     timelineEvents:  m.history.length,
     firstWatch:      m.history.length ? m.history[m.history.length - 1].date : null,
@@ -1541,7 +1625,7 @@ function renderOverview(root) {
     ['showsFollowed', 'Shows followed', fmtInt(o.showsFollowed), '', `${fmtInt(o.showsTracked)} tracked total`],
     ['moviesTracked', 'Movies tracked', fmtInt(o.moviesTracked), '', null],
     ['reactionsLogged', 'Reactions logged', fmtInt(o.reactionsLogged), '', null],
-    ['showRatings', 'Shows rated', fmtInt(o.showRatings), '', 'star-rated 1–5'],
+    ['ratingsLogged', 'Ratings given', fmtInt(o.ratingsLogged), '', 'shows · movies · episodes'],
   ];
   const grid = el('div', { class: 'stat-grid' });
   for (const [, label, value, cls, sub] of cards) {
@@ -1801,7 +1885,7 @@ function renderShows(root) {
         ]),
       ]));
       kids.push(el('div', { class: 'item-right' }, [
-        s.rating ? el('div', { class: 'rating-chip', html: `${s.rating}<span class="star">★</span>` }) : null,
+        s.rating ? ratingChip({ stars: s.rating, label: LEVEL_LABEL[s.rating] || '' }) : null,
         el('div', { html: '' }), statusBadge(s.status),
       ]));
       return el('div', { class: 'item clickable', title: 'View episode progress', onclick: () => navigate({ view: 'shows', detail: slugify(s.title) }) }, kids);
@@ -1838,7 +1922,7 @@ function openShowDetail(show) {
         el('span', { html: `<b>${fmtInt(show.epWatched || 0)}</b> episodes watched` }),
         show.rewatches ? el('span', { html: `<b>${fmtInt(show.rewatches)}</b> rewatches` }) : null,
         show.emotionCount ? el('span', { html: `<i class="ph ph-heart"></i> ${fmtInt(show.emotionCount)}` }) : null,
-        show.rating ? el('span', { html: `${show.rating}★` }) : null,
+        show.rating ? ratingChip({ stars: show.rating, label: LEVEL_LABEL[show.rating] || '' }) : null,
         statusBadge(show.status),
       ]),
     ]),
@@ -1852,13 +1936,17 @@ function openShowDetail(show) {
   }
   for (const k in datesByEp) datesByEp[k].sort((a, b) => (a ? a.getTime() : 0) - (b ? b.getTime() : 0));
 
-  // Ratings & reactions this show received, per episode (deduped by decoded label).
+  // Your feelings + star rating on each episode of this show.
+  const showKey = norm(show.title);
   const reactsByEp = {};
   for (const r of STATE.model.reactions.list) {
-    if (r.kind !== 'episode' || norm(r.title) !== norm(show.title) || r.reactionId == null) continue;
+    if (r.kind !== 'episode' || norm(r.title) !== showKey || r.reactionId == null) continue;
     const label = reactionChipText(r.reactionId, r.source);
-    const key = `${r.season}|${r.episode}`;
-    (reactsByEp[key] ||= new Set()).add(label);
+    (reactsByEp[`${r.season}|${r.episode}`] ||= new Set()).add(label);
+  }
+  const ratingByEp = {};
+  for (const r of STATE.model.ratings.list) {
+    if (r.kind === 'episode' && norm(r.title) === showKey) ratingByEp[`${r.season}|${r.episode}`] = r;
   }
 
   const body = el('div');
@@ -1888,7 +1976,7 @@ function openShowDetail(show) {
       note.append(el('button', { class: 'btn secondary', text: failed ? '↻ Retry' : 'Load episodes', onclick: refetch }));
     }
     body.append(note);
-    renderSeasons(body, datesByEp, epMap, v && v.i, reactsByEp, v && v.iO);
+    renderSeasons(body, datesByEp, epMap, v && v.i, reactsByEp, v && v.iO, ratingByEp);
   };
 
   const cached = Enrichment.getCached(key);
@@ -1898,7 +1986,7 @@ function openShowDetail(show) {
   else render(null, false);
 }
 
-function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, imgFullMap) {
+function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, imgFullMap, ratingByEp) {
   const full = !!epMap;
   const seasons = {}; // sNum -> { eNum -> title|null }
   const source = full ? Object.keys(epMap) : Object.keys(datesByEp);
@@ -1934,6 +2022,7 @@ function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, imgFullM
           el('div', { class: 'ep-num', text: numTxt }),
           el('div', { class: 'ep-title' + (c ? '' : ' unseen'), text: seasons[s][e] || `Episode ${e}` }),
           c ? el('div', { class: 'ep-dates' }, dates.map((d, i) => el('span', { text: (i === 0 ? '▶ ' : '↻ ') + fmtDateTime(d) }))) : null,
+          (ratingByEp && ratingByEp[`${s}|${e}`]) ? el('div', { class: 'ep-rating', text: `${ratingByEp[`${s}|${e}`].label} · ${ratingByEp[`${s}|${e}`].stars}★` }) : null,
           (reactsByEp && reactsByEp[`${s}|${e}`]) ? el('div', { class: 'ep-reactions', text: [...reactsByEp[`${s}|${e}`]].join(' · ') }) : null,
         ]),
         c ? el('span', { class: 'count-badge' + (c === 1 ? ' once' : ''), text: `×${c}` }) : el('span', { class: 'unwatched-dot' }),
@@ -1957,10 +2046,12 @@ function renderMovies(root) {
       { id: 'all', label: 'All', test: () => true },
       { id: 'watched', label: 'Watched', test: mv => mv.watched },
       { id: 'watchlist', label: 'Watchlist', test: mv => mv.status === 'watchlist' },
-      { id: 'reacted', label: 'Reacted', test: mv => mv.reacted },
+      { id: 'rated', label: 'Rated', test: mv => !!mv.rating },
+      { id: 'reacted', label: 'Reacted', test: mv => mv.reactions.length > 0 },
     ] },
     sorts: [
       { id: 'recent', label: 'Recently watched', fn: (a, b) => (b.watchedAt?.getTime() || 0) - (a.watchedAt?.getTime() || 0) },
+      { id: 'rating', label: 'Highest rated', fn: (a, b) => (b.rating?.stars || 0) - (a.rating?.stars || 0) },
       { id: 'runtime', label: 'Longest', fn: (a, b) => b.runtime - a.runtime },
       { id: 'az', label: 'A → Z', fn: (a, b) => a.title.localeCompare(b.title) },
     ],
@@ -1975,14 +2066,15 @@ function renderMovies(root) {
             ? mv.watchDates.map((d, i) => el('span', { class: 'watch-date', text: (i === 0 ? '▶ ' : '↻ ') + fmtDate(d) }))
             : (mv.followedAt ? [el('span', { text: `added ${fmtDate(mv.followedAt)}` })] : [])),
         ]),
+        mv.reactions.length ? el('div', { class: 'ep-reactions', text: mv.reactions.join(' · ') }) : null,
       ]),
       el('div', { class: 'item-right' }, [
-        mv.reacted ? el('span', { class: 'badge accent', html: '<i class="ph ph-heart"></i> reacted' }) : null,
+        mv.rating ? ratingChip(mv.rating) : null,
         el('div', { html: '' }), statusBadge(mv.status),
       ]),
     ]),
     exportName: 'tvtime-movies',
-    exportRow: (mv) => ({ title: mv.title, status: mv.status || '', watched: mv.watched, watch_count: mv.watchCount, rewatches: mv.rewatches, runtime_seconds: mv.runtime, reacted: mv.reacted, watched_at: mv.watchedAt ? mv.watchedAt.toISOString() : '', followed_at: mv.followedAt ? mv.followedAt.toISOString() : '', sources: (mv.sources || []).join('|') }),
+    exportRow: (mv) => ({ title: mv.title, status: mv.status || '', watched: mv.watched, watch_count: mv.watchCount, rewatches: mv.rewatches, runtime_seconds: mv.runtime, rating: mv.rating ? mv.rating.label : '', stars: mv.rating ? mv.rating.stars : '', reactions: mv.reactions.join('|'), watched_at: mv.watchedAt ? mv.watchedAt.toISOString() : '', followed_at: mv.followedAt ? mv.followedAt.toISOString() : '', sources: (mv.sources || []).join('|') }),
   });
 }
 
@@ -2101,36 +2193,53 @@ function renderHistory(root) {
 /* ===================================================================
    VIEW: Ratings — genuine show star ratings (tv_show_rate, 1–5)
    =================================================================== */
+// Star + word chip for a rating {stars, label}.
+function ratingChip(r) {
+  return el('div', { class: 'rating-chip', title: `${r.label} (${r.stars}/5)` }, [
+    el('span', { text: r.label }), el('span', { class: 'star', text: ` ${r.stars}★` }),
+  ]);
+}
+
 function renderRatings(root) {
-  const list = STATE.model.showRatings.list;
+  const list = STATE.model.ratings.list;
   if (!list.length) {
     viewHead(root, 'Ratings', '');
-    root.append(el('div', { class: 'empty', text: 'No star ratings.' }));
+    root.append(el('div', { class: 'empty', text: 'No ratings.' }));
     return;
   }
+  const KIND = { show: 'Show', movie: 'Movie', episode: 'Episode' };
   listView(root, {
-    title: 'Ratings', subtitle: `${fmtInt(list.length)} rated shows`,
-    items: list, searchKeys: ['title'], stateKey: 'ratings',
-    enrichShows: (slice) => slice.map(r => showPosterItem(r.title)),
+    title: 'Ratings', subtitle: `${fmtInt(list.length)} rated`, items: list, stateKey: 'ratings',
+    searchText: (r) => `${r.title} ${r.kind === 'movie' ? movieTitle(r.title) : ''}`,
+    enrichShows: (slice) => slice.filter(r => r.kind !== 'movie').map(r => showPosterItem(r.title)),
     filter: { default: 'all', options: [
-      { id: 'all', label: 'All scores', test: () => true },
-      { id: '5', label: '5 ★', test: r => r.score === 5 },
-      { id: '4', label: '4 ★', test: r => r.score === 4 },
-      { id: '3', label: '3 ★', test: r => r.score === 3 },
-      { id: '2', label: '2 ★', test: r => r.score === 2 },
-      { id: '1', label: '1 ★', test: r => r.score === 1 },
+      { id: 'all', label: 'All', test: () => true },
+      { id: 'show', label: 'Shows', test: r => r.kind === 'show' },
+      { id: 'movie', label: 'Movies', test: r => r.kind === 'movie' },
+      { id: 'episode', label: 'Episodes', test: r => r.kind === 'episode' },
     ] },
     sorts: [
-      { id: 'score', label: 'Highest rated', fn: (a, b) => b.score - a.score },
-      { id: 'recent', label: 'Most recent', fn: (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0) },
+      { id: 'recent', label: 'Recently rated', fn: (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0) },
+      { id: 'oldest', label: 'Oldest rated', fn: (a, b) => (a.date?.getTime() || Infinity) - (b.date?.getTime() || Infinity) },
+      { id: 'score', label: 'Highest rated', fn: (a, b) => b.stars - a.stars || a.title.localeCompare(b.title) },
       { id: 'az', label: 'A → Z', fn: (a, b) => a.title.localeCompare(b.title) },
+      { id: 'kind', label: 'By type', fn: (a, b) => a.kind.localeCompare(b.kind) || b.stars - a.stars },
     ],
-    renderItem: (r) => showLineItem(r.title, null, [
-      el('div', { class: 'item-title', text: r.title }),
-      el('div', { class: 'item-meta' }, [ r.date ? el('span', { text: fmtDate(r.date) }) : null ]),
-    ], [ el('div', { class: 'rating-chip', html: `${r.score}<span class="star">★</span>` }) ]),
-    exportName: 'tvtime-show-ratings',
-    exportRow: (r) => ({ title: r.title, score: r.score, rated_at: r.date ? r.date.toISOString() : '' }),
+    renderItem: (r) => {
+      const main = [
+        el('div', { class: 'item-title', text: r.kind === 'movie' ? movieTitle(r.title) : r.title }),
+        el('div', { class: 'item-meta' }, [
+          el('span', { class: 'badge dim', text: KIND[r.kind] || r.kind }),
+          r.kind === 'episode' && (r.season || r.episode) ? el('span', { text: `S${r.season || '?'}·E${r.episode || '?'}` }) : null,
+          r.date ? el('span', { text: fmtDate(r.date) }) : null,
+        ]),
+      ];
+      // showLineItem gives every row the poster slot (movies get a blank spacer) and
+      // opens the show detail for shows/episodes; movies have no detail page.
+      return showLineItem(r.title, null, main, [ratingChip(r)]);
+    },
+    exportName: 'tvtime-ratings',
+    exportRow: (r) => ({ kind: r.kind, title: r.title, stars: r.stars, label: r.label, season: r.season ?? '', episode: r.episode ?? '', rated_at: r.date ? r.date.toISOString() : '' }),
   });
 }
 
@@ -2140,7 +2249,7 @@ function renderRatings(root) {
    =================================================================== */
 function renderReactions(root) {
   const model = STATE.model;
-  const all = model.reactions.list;
+  const items = model.reactions.grouped;   // one row per episode/movie, many feelings each
 
   // per-show reaction totals summary
   const perShow = Object.entries(model.emotionPerShow).map(([k, count]) => ({ key: k, count })).sort((a, b) => b.count - a.count);
@@ -2149,8 +2258,8 @@ function renderReactions(root) {
 
   listView(root, {
     title: 'Reactions',
-    subtitle: `${fmtInt(all.length)} reactions`,
-    items: all, searchKeys: ['title'],
+    subtitle: `${fmtInt(items.length)} reacted`,
+    items,
     beforeList: (container) => {
       if (!perShow.length) return;
       container.append(el('div', { class: 'section-title', text: 'Shows you reacted to most' }));
@@ -2174,15 +2283,16 @@ function renderReactions(root) {
     enrichShows: (slice) => slice.filter(r => r.kind === 'episode').map(r => ({ seriesId: Enrichment.seriesIdByName[norm(r.title)], title: r.title })),
     enrichMovies: (slice) => slice.filter(r => r.kind === 'movie').map(r => r.title),
     sorts: [
-      { id: 'recent', label: 'Most recent', fn: (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0) },
+      // Watch-date proxy; entities with no watch date (reacted without a watch record) sort last.
+      { id: 'recent', label: 'Recently watched', fn: (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0) },
+      { id: 'oldest', label: 'Oldest first', fn: (a, b) => (a.date?.getTime() || Infinity) - (b.date?.getTime() || Infinity) },
+      { id: 'most', label: 'Most feelings', fn: (a, b) => b.reactions.length - a.reactions.length },
       { id: 'az', label: 'A → Z', fn: (a, b) => a.title.localeCompare(b.title) },
-      { id: 'kind', label: 'By type', fn: (a, b) => a.kind.localeCompare(b.kind) || a.title.localeCompare(b.title) },
     ],
     renderItem: (r) => {
       const info = r.kind === 'episode' ? Enrichment.epInfo(r.title, null, r.season, r.episode) : null;
       const epName = info && info.name;
       const kids = [];
-      // Thumbnail slot for both types; movies get an empty placeholder to stay aligned.
       if (Enrichment.enabled) {
         const img = r.kind === 'episode' && info && info.image ? info.image : null;
         kids.push(zoomImg('item-thumb', img, r.title, info && info.imageFull));
@@ -2194,15 +2304,15 @@ function renderReactions(root) {
           r.kind === 'episode' && (r.season || r.episode) ? el('span', { text: `S${r.season || '?'}·E${r.episode || '?'}${epName ? ' · ' + epName : ''}` }) : null,
           r.date ? el('span', { text: fmtDate(r.date) }) : null,
         ]),
+        el('div', { class: 'reaction-chips' }, r.reactions.map(l => el('span', { class: 'badge accent', text: l }))),
       ]));
-      kids.push(el('div', { class: 'item-right' }, [ r.reactionId != null ? el('span', { class: 'badge' + (FEELING_LABELS[r.reactionId] ? ' accent' : (/^ratings/.test(r.source) && STAR_LABELS[r.reactionId] ? ' warn' : '')), text: reactionChipText(r.reactionId, r.source) }) : null ]));
       const slug = r.kind === 'episode' ? knownShowSlug(r.title) : null;
       const item = el('div', { class: 'item' + (slug ? ' clickable' : '') }, kids);
       if (slug) { item.title = 'View episode progress'; item.addEventListener('click', () => navigate({ view: 'shows', detail: slug })); }
       return item;
     },
     exportName: 'tvtime-reactions',
-    exportRow: (r) => ({ kind: r.kind, title: r.title, season: r.season, episode: r.episode, reaction_id: r.reactionId ?? '', feeling: FEELING_LABELS[r.reactionId] ? FEELING_LABELS[r.reactionId][1] : '', date: r.date ? r.date.toISOString() : '', source: r.source }),
+    exportRow: (r) => ({ kind: r.kind, title: r.title, season: r.season ?? '', episode: r.episode ?? '', feelings: r.reactions.join(' | '), watched_at: r.date ? r.date.toISOString() : '' }),
   });
 
   // Posters for the "reacted to most" summary (its cards live outside the paginated list).
