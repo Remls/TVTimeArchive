@@ -5,6 +5,7 @@ import { STATE } from '../core/state.js';
 import { $, el, fmtDate, fmtDateTime, fmtInt, norm, slugify } from '../core/util.js';
 import { detailScaffold, emptyState, listView, posterCard, ratingChip, statusBadge } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
+import { commentCard } from './comments.js';
 
 export function renderShows(root) {
   const shows = STATE.model.shows;
@@ -75,6 +76,15 @@ export function openShowDetail(show) {
     if (r.kind === 'episode' && norm(r.title) === showKey) ratingByEp[`${r.season}|${r.episode}`] = r;
   }
 
+  // Your comments on this show's episodes, keyed by season|episode, oldest first so a
+  // parent comment reads before its reply.
+  const commentsByEp = {};
+  for (const cm of STATE.model.comments.list) {
+    if (cm.kind !== 'episode' || norm(cm.target) !== showKey) continue;
+    (commentsByEp[`${cm.season}|${cm.episode}`] ||= []).push(cm);
+  }
+  for (const k in commentsByEp) commentsByEp[k].sort((a, b) => (a.date?.getTime() || 0) - (b.date?.getTime() || 0));
+
   const key = Enrichment.keyFor(show.id, show.title);
 
   const load = () => {
@@ -100,7 +110,7 @@ export function openShowDetail(show) {
       note.append(el('button', { class: 'btn secondary', text: failed ? '↻ Retry' : 'Load episodes', onclick: refetch }));
     }
     body.append(note);
-    renderSeasons(body, datesByEp, epMap, v && v.i, reactsByEp, v && v.iO, ratingByEp);
+    renderSeasons(body, datesByEp, epMap, v && v.i, reactsByEp, v && v.iO, ratingByEp, commentsByEp);
   };
 
   const cached = Enrichment.getCached(key);
@@ -110,7 +120,7 @@ export function openShowDetail(show) {
   else render(null, false);
 }
 
-export function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, imgFullMap, ratingByEp) {
+export function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, imgFullMap, ratingByEp, commentsByEp) {
   const full = !!epMap;
   const seasons = {}; // sNum -> { eNum -> title|null }
   const source = full ? Object.keys(epMap) : Object.keys(datesByEp);
@@ -148,6 +158,7 @@ export function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, i
           c ? el('div', { class: 'ep-dates' }, dates.map((d, i) => el('span', { text: (i === 0 ? '▶ ' : '↻ ') + fmtDateTime(d) }))) : null,
           (ratingByEp && ratingByEp[`${s}|${e}`]) ? el('div', { class: 'ep-rating', text: `${ratingByEp[`${s}|${e}`].label} ${ratingByEp[`${s}|${e}`].stars}★` }) : null,
           (reactsByEp && reactsByEp[`${s}|${e}`]) ? el('div', { class: 'ep-reactions', text: [...reactsByEp[`${s}|${e}`]].join(', ') }) : null,
+          ...((commentsByEp && commentsByEp[`${s}|${e}`]) || []).map(cm => commentCard(cm, { compact: true })),
         ]),
         c ? el('span', { class: 'count-badge' + (c === 1 ? ' once' : ''), text: `×${c}` }) : el('span', { class: 'unwatched-dot' }),
       ]));

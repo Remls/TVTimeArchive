@@ -579,6 +579,9 @@ details.season[open] > summary::before { transform: rotate(90deg); }
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 13px 14px; display: flex; flex-direction: column; gap: 8px;
 }
+/* Inline comment under an episode in the show detail: lighter, tighter than the list card. */
+.ep-body .cmt { margin-top: 6px; padding: 8px 10px; gap: 5px; background: var(--surface-2); font-size: .85rem; }
+.ep-body .cmt-text { font-size: .85rem; }
 .cmt-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .cmt-target { color: var(--text-dim); font-size: .82rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .cmt-target i { color: var(--text-faint); }

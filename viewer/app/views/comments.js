@@ -59,20 +59,29 @@ export function pickBackup(cb) {
 
 export const COMMENT_ICON = { episode: 'ph-television', show: 'ph-television', series: 'ph-television', movie: 'ph-film-slate', profile: 'ph-user' };
 
-/* One comment, rendered as a card. Shared by the Comments view and the detail pages. */
-export function commentCard(e) {
-  const label = e.kind === 'episode' && e.season
-    ? `${e.target} S${pad2(e.season)}E${pad2(e.episode)}`
-    : (e.target || '-');
-  const nav = entityNav(e.kind, e.target);
-  const targetEl = el('span', { class: 'cmt-target' + (nav ? ' clickable' : '') }, [
-    el('i', { class: 'ph ' + (COMMENT_ICON[e.kind] || 'ph-chat-circle-text') }), ' ' + label,
-  ]);
-  if (nav) targetEl.addEventListener('click', () => navigate(nav));
+/* One comment, rendered as a card. Shared by the Comments view and the detail pages.
+   opts.compact drops the "what it's on" header (used where the context is already shown,
+   e.g. under an episode in the show detail). */
+export function commentCard(e, opts = {}) {
+  const head = [];
+  if (!opts.compact) {
+    const label = e.kind === 'episode' && e.season
+      ? `${e.target} S${pad2(e.season)}E${pad2(e.episode)}`
+      : (e.target || '-');
+    const nav = entityNav(e.kind, e.target);
+    const targetEl = el('span', { class: 'cmt-target' + (nav ? ' clickable' : '') }, [
+      el('i', { class: 'ph ' + (COMMENT_ICON[e.kind] || 'ph-chat-circle-text') }), ' ' + label,
+    ]);
+    if (nav) targetEl.addEventListener('click', () => navigate(nav));
+    head.push(targetEl);
+  }
+  head.push(el('span', { class: 'cmt-date', text: fmtDate(e.date) }));
 
-  const kids = [el('div', { class: 'cmt-head' }, [targetEl, el('span', { class: 'cmt-date', text: fmtDate(e.date) })])];
+  const kids = [el('div', { class: 'cmt-head' }, head)];
 
-  if (e.isReply) {
+  // The parent quote is skipped in compact mode: the parent comment is already shown
+  // right there (e.g. under the same episode), so quoting it just reads as a duplicate.
+  if (e.isReply && !opts.compact) {
     kids.push(e.parent
       ? el('div', { class: 'cmt-parent' }, [el('i', { class: 'ph ph-arrow-bend-up-left' }), el('span', { text: truncate(e.parent.text, 140) })])
       : el('div', { class: 'cmt-parent muted' }, [el('i', { class: 'ph ph-arrow-bend-up-left' }), el('span', { text: 'Reply to a comment that isn’t in the export' })]));
