@@ -304,7 +304,7 @@ export function listView(root, cfg) {
 
 export function statusBadge(status) {
   const map = { following: ['good', 'Following'], archived: ['dim', 'Archived'], stopped: ['warn', 'Stopped'], watchlist: ['accent', 'Watchlist'], watched: ['good', 'Watched'], rated: ['warn', 'Rated'] };
-  const [cls, label] = map[status] || ['dim', status || '—'];
+  const [cls, label] = map[status] || ['dim', status || '-'];
   return el('span', { class: 'badge ' + cls, text: label });
 }
 
@@ -331,7 +331,7 @@ export function emptyState(text, opts = {}) {
   ]);
 }
 
-/* Shared "this data lives on TV Time's servers — capture it before shutdown" notice.
+/* Shared "this data lives on TV Time's servers, capture it before shutdown" notice.
    opts: { icon, title, body (string | array of nodes), action (node | null) } */
 export function backupNote({ icon, title, body, action }) {
   const status = el('div', { class: 'backup-note-status' }, [

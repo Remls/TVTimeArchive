@@ -41,7 +41,7 @@ export function renderNotifications(root) {
         kids.push(el('div', { class: 'notif-thumb empty' }));
       }
       kids.push(el('div', { class: 'item-main' }, [
-        el('div', { class: 'notif-text', text: n.text || '—' }),
+        el('div', { class: 'notif-text', text: n.text || '-' }),
         el('div', { class: 'item-meta' }, [n.date ? el('span', { text: fmtDate(n.date) }) : null]),
       ]));
       kids.push(el('div', { class: 'item-right' }, [

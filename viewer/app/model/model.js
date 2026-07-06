@@ -66,7 +66,7 @@ export function buildProfile() {
   const tvd = {};
   for (const r of T('user_tv_show_data.csv')) if (r.name) tvd[r.name] = r.value;
 
-  // user.csv `name` is often just the numeric user id — treat that as "no real name".
+  // user.csv `name` is often just the numeric user id, treat that as "no real name".
   const rawName = (u.name || '').trim();
   const realName = (rawName && rawName !== u.id && !/^\d+$/.test(rawName)) ? rawName : '';
   const routing = T('routing-prod-users.csv')[0] || {};
@@ -75,14 +75,14 @@ export function buildProfile() {
   const displayName = realName || username;
 
   return {
-    name: realName || '—',
+    name: realName || '-',
     username,
     displayName,
     avatar: (routing.image_url || '').trim(),      // profile picture (CloudFront)
     userId: (routing.user_id || u.id || '').trim(),
-    email: u.mail || personal.email || '—',
-    language: u.language || '—',
-    timezone: u.timezone || '—',
+    email: u.mail || personal.email || '-',
+    language: u.language || '-',
+    timezone: u.timezone || '-',
     createdAt: parseDate(u.created_at),
     lastOpened: parseDate(u.last_opened),
     daysActive: u.nb_days_active,
@@ -92,7 +92,7 @@ export function buildProfile() {
   };
 }
 
-// Latest watch date per episode / movie — used as the "rated/reacted on" proxy since
+// Latest watch date per episode / movie, used as the "rated/reacted on" proxy since
 // the vote files carry no timestamp of their own.
 export function watchDates(history) {
   const ep = {}, mv = {};
@@ -142,7 +142,7 @@ export function buildRatings(history) {
 }
 
 /* ---------------- Reactions (emotions) ----------------
-   The "how did you feel?" emotions — feelings only (star ratings live in buildRatings).
+   The "how did you feel?" emotions, feelings only (star ratings live in buildRatings).
    Sources: emotions-3/v2 votes, emotions-live (movies), episode_emotion. */
 export function buildReactions(history) {
   const list = [];
@@ -193,7 +193,7 @@ export function buildReactions(history) {
 }
 
 /* ---------------- Per-show reaction totals ----------------
-   tv_show_user_emotion_count.csv — TV Time's own per-show reaction tally. */
+   tv_show_user_emotion_count.csv, TV Time's own per-show reaction tally. */
 export function buildEmotionPerShow() {
   const perShow = {};
   for (const r of T('tv_show_user_emotion_count.csv')) {
@@ -459,10 +459,10 @@ export function buildLists() {
 
 /* ---------------- Comments ----------------
    Your own comments, gathered from every comment table in the export:
-     episode_comment.csv        — comments on episodes (the bulk)
-     show_comment.csv           — comments on a show as a whole
-     profile_comment.csv        — comments you left on a friend's profile
-     comments-prod-comments.csv — newer movie/series comments (type comment/reply)
+     episode_comment.csv       , comments on episodes (the bulk)
+     show_comment.csv          , comments on a show as a whole
+     profile_comment.csv       , comments you left on a friend's profile
+     comments-prod-comments.csv, newer movie/series comments (type comment/reply)
    Attached images come from meme.csv, joined on episode_comment_id.
    Replies keep their parent's text only when the parent is also one of your
    comments (other users' comments aren't in the export). */
@@ -477,7 +477,7 @@ export function buildComments(shows) {
     const url = (mm.medium_url || '').trim(); if (!url) continue;
     (memesByComment[cid] || (memesByComment[cid] = [])).push({
       id: (mm.id || '').trim(),
-      url,                                        // "marked" — the version as posted
+      url,                                        // "marked", the version as posted
       clean: (mm.clean_version_medium_url || '').trim(),
       kind: mm.type || 'meme',
       w: toNum(mm.width) || null, h: toNum(mm.height) || null,
@@ -515,7 +515,7 @@ export function buildComments(shows) {
       parentId: (r.parent_comment_id || '').trim().replace(/^0$/, ''), date: parseDate(r.created_at),
     });
   }
-  // profile_comment.csv — target is a friend's profile (id only; names aren't in the export)
+  // profile_comment.csv, target is a friend's profile (id only; names aren't in the export)
   for (const r of T('profile_comment.csv')) {
     const text = textOf(r); if (!text) continue;
     add({
@@ -524,7 +524,7 @@ export function buildComments(shows) {
       parentId: (r.parent_comment_id || '').trim().replace(/^0$/, ''), date: parseDate(r.created_at),
     });
   }
-  // comments-prod-comments.csv — newer movie/series comments (skip likes/reports/blank rows)
+  // comments-prod-comments.csv, newer movie/series comments (skip likes/reports/blank rows)
   const byUuid = {};
   for (const r of T('comments-prod-comments.csv')) {
     if (r.type !== 'comment' && r.type !== 'reply') continue;
@@ -555,7 +555,7 @@ export function buildComments(shows) {
 }
 
 /* ---------------- Notifications ----------------
-   notifications-prod-notifications.csv — your read-only activity feed: who liked /
+   notifications-prod-notifications.csv, your read-only activity feed: who liked /
    replied to / mentioned / requested to follow you, badges you unlocked, and airing
    reminders. The `text` is already display-ready; sender avatars / badge art / posters
    come from the `image` field (backed up per notifImageRef). */
@@ -593,7 +593,7 @@ export function buildNotifications() {
 }
 
 /* ---------------- Badges ----------------
-   user_badge.csv — 528 earned badges, but most are the same badge unlocked per show
+   user_badge.csv, 528 earned badges, but most are the same badge unlocked per show
    (e.g. "quick-watcher-3" for many series). We group by badge *type* (the slug minus
    the leading show id) with a count + date range. Art/name for the ~119 that appeared
    in a badge-unlocked notification; a humanized slug for the rest. */
@@ -637,7 +637,7 @@ export function buildBadges() {
 }
 
 /* ---------------- Characters ----------------
-   show_character_episode_vote.csv — the characters you voted for, per episode. Names /
+   show_character_episode_vote.csv, the characters you voted for, per episode. Names /
    actors / posters come from the extended backup (Extended.characters), else id only. */
 export function buildCharacters() {
   const byId = {};
@@ -658,7 +658,7 @@ export function buildCharacters() {
 }
 
 /* ---------------- Friends ----------------
-   friend.csv — your friends (ids + affinity + since). Real names / avatars come from
+   friend.csv, your friends (ids + affinity + since). Real names / avatars come from
    the extended backup (Extended.friends), else id only. */
 export function buildFriends() {
   const list = [];

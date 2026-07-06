@@ -35,7 +35,7 @@ export const IDB = {
 };
 
 /* -------------------------------------------------------------------
-   Backup store — the imported "extended backup" (comment images, avatars, badge art,
+   Backup store, the imported "extended backup" (comment images, avatars, badge art,
    character posters, friend avatars + resolved names). Images live on TV Time's CDN
    (no CORS) and names behind ids, so extended-backup.py (repo root) harvests them into one
    foldered zip; this store holds that zip's image blobs locally (keyed by
@@ -83,7 +83,7 @@ export const Backup = {
       await new Promise((res, rej) => { const tx = db.transaction(this.STORE, 'readwrite'); tx.objectStore(this.STORE).put(blob, key); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
       n++;
     }
-    // Resolved names (characters.json / friends.json) — kept in localStorage.
+    // Resolved names (characters.json / friends.json), kept in localStorage.
     for (const entry of metas) {
       const base = entry.name.split('/').pop().replace(/\.json$/i, '');   // 'characters' | 'friends'
       try { localStorage.setItem('tvt.' + base, await entry.async('string')); n++; } catch {}

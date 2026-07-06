@@ -182,11 +182,11 @@ export function buildSettingsMenu() {
     });
   });
   const importNote = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-info' }), el('span', {}, [
-    'Comment images, avatars, badges, characters & friends. Generate it with extended-backup.py — see the ',
+    'Comment images, avatars, badges, characters & friends. Generate it with extended-backup.py, see the ',
     el('a', { href: 'https://github.com/Remls/TVTimeArchive#extended-backup', target: '_blank', rel: 'noopener noreferrer', text: 'README' }), '.',
   ])]);
 
-  // Umbrella "Clear cache…" — expands to per-cache clears, each confirm-gated.
+  // Umbrella "Clear cache…", expands to per-cache clears, each confirm-gated.
   const clearWrap = el('div', { class: 'menu-sub-wrap' });
   const clearToggle = el('button', { class: 'menu-item' }, [el('span', { text: 'Clear cache…' }), el('i', { class: 'ph ph-caret-right menu-caret' })]);
   const clearSub = el('div', { class: 'menu-sub', hidden: '' });

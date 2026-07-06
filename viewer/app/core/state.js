@@ -6,7 +6,7 @@ export const STATE = {
   model: null,  // derived, curated datasets
   view: 'home',
   listState: {},      // stateKey -> { q, sort, page } preserved across navigation
-  pendingScroll: null,// { key, y } — restore scroll once when a list re-renders
+  pendingScroll: null,// { key, y }, restore scroll once when a list re-renders
 };
 
 export const UI = { activePopup: null, activeLightbox: null };

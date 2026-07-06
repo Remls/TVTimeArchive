@@ -1,5 +1,5 @@
 /* ===================================================================
-   TV Time Archive Viewer — mobile-first, scales up to desktop.
+   TV Time Archive Viewer, mobile-first, scales up to desktop.
    =================================================================== */
 
 :root {
@@ -11,7 +11,7 @@
   --text:      #f3ede4;   /* warm off-white */
   --text-dim:  #a89e92;
   --text-faint:#6f6456;
-  --accent:    #ff6a4d;   /* warm coral — the ONE accent */
+  --accent:    #ff6a4d;   /* warm coral, the ONE accent */
   --accent-hi: #ff8a5c;   /* lighter accent tint for hovers/hero numeral */
   --accent-ink:#2a0f08;   /* dark text that sits on the accent */
   --accent-2:  #ff8a5c;   /* accent tint (not gold) */
@@ -43,7 +43,7 @@ html, body {
 code { font-family: 'JetBrains Mono', ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
 button { font-family: inherit; cursor: pointer; }
 
-/* Display face — headings & big numerals (by selector, so markup is untouched) */
+/* Display face, headings & big numerals (by selector, so markup is untouched) */
 .brand h1, .brand-rail, .view-head h2, .section-title,
 .stat-value, .detail-hero-text h2, .dz-title {
   font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif;
@@ -207,7 +207,7 @@ button { font-family: inherit; cursor: pointer; }
 .subnav-item i { font-size: 1.1rem; }
 .subnav-item:hover { background: var(--surface); color: var(--text); }
 .subnav-item.active { color: var(--accent); }
-/* Mobile popup — the subnav is moved to <body> and gets .floating so it escapes the
+/* Mobile popup, the subnav is moved to <body> and gets .floating so it escapes the
    tabbar's containing block (backdrop-filter) and isn't clipped. */
 .subnav { display: none; }
 .subnav.floating {
@@ -296,7 +296,7 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--surface); border: 1px solid var(--line);
   padding: 6px 10px; border-radius: 999px; white-space: nowrap;
 }
-/* Styled sort / filter dropdown (menuSelect) — replaces native <select> */
+/* Styled sort / filter dropdown (menuSelect), replaces native <select> */
 .ms { position: relative; flex: 0 0 auto; max-width: 100%; }
 .ms-btn {
   display: inline-flex; align-items: center; gap: 7px; max-width: 100%;
@@ -618,7 +618,7 @@ details.season[open] > summary::before { transform: rotate(90deg); }
   position: fixed; inset: 0; z-index: 200; display: grid; place-items: center;
   background: rgba(0,0,0,.85); padding: 20px; cursor: zoom-out;
 }
-/* Size against the viewport directly — a % max-height won't constrain inside an
+/* Size against the viewport directly, a % max-height won't constrain inside an
    auto-sized grid row, so full-res images would overflow. */
 .lightbox img {
   max-width: calc(100vw - 40px); max-height: calc(100dvh - 40px);

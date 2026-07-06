@@ -12,7 +12,7 @@ export function renderProfile(root) {
   if (hasCover) hero.append(el('div', { class: 'profile-hero-bg', style: `background-image:url("${cover.replace(/"/g, '%22')}")` }));
   hero.append(el('div', { class: 'profile-hero-body' }, [
     avatarEl(p.avatar, p.displayName, p.userId && 'avatars/' + p.userId, 'xl'),
-    el('div', { class: 'profile-hero-name', text: p.displayName || '—' }),
+    el('div', { class: 'profile-hero-name', text: p.displayName || '-' }),
     p.username && p.username !== p.displayName ? el('div', { class: 'profile-hero-sub', text: '@' + p.username }) : null,
   ]));
   root.append(hero);
@@ -22,7 +22,7 @@ export function renderProfile(root) {
     ['Name', p.name], ['Username', p.username], ['Email', p.email], ['Language', p.language], ['Timezone', p.timezone],
     ['Member since', fmtDate(p.createdAt)], ['Last opened', fmtDateTime(p.lastOpened)],
     ['Days active', p.daysActive], ['Weeks active', p.weeksActive], ['Months active', p.monthsActive],
-  ].filter(([, v]) => nonEmpty(v) && v !== '—');
+  ].filter(([, v]) => nonEmpty(v) && v !== '-');
   const dl = el('dl', { class: 'kv' });
   for (const [k, v] of rows) { dl.append(el('dt', { text: k }), el('dd', { text: v })); }
   root.append(dl);

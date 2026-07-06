@@ -50,15 +50,15 @@ export function reactionIdFromKey(key, uid) {
 }
 
 /* ---------------- Show star ratings ----------------
-   tv_show_rate.csv — the only genuine numeric rating (1–5 scale). */
+   tv_show_rate.csv, the only genuine numeric rating (1–5 scale). */
 /* ---------------- Ratings ----------------
-   The 5-level star rating (Bad/Meh/Okay/Good/Wow) the user gave — the SAME scale for
+   The 5-level star rating (Bad/Meh/Okay/Good/Wow) the user gave, the SAME scale for
    shows, movies and episodes. Show-level from tv_show_rate.csv; episode/movie from the
    ratings-* vote files (id decoded via RATING_LABELS, scoped to rating sources). One
-   rating per entity — the export keeps historical clicks, so on conflict keep highest. */
+   rating per entity, the export keeps historical clicks, so on conflict keep highest. */
 export const LEVEL_LABEL = [null, 'Bad', 'Meh', 'Okay', 'Good', 'Wow'];
 
-// episode_emotion.csv is TV Time's OLD combined table — it stores the rating in the
+// episode_emotion.csv is TV Time's OLD combined table, it stores the rating in the
 // same emotion_id field, using the original id scheme (old7=bad … old3=wow). Ids that
 // aren't emotions are these ratings. id -> [stars, label].
 export const OLD_EMOTION_RATING = { 7: [1, 'Bad'], 6: [2, 'Meh'], 8: [3, 'Okay'], 1: [4, 'Good'], 3: [5, 'Wow'] };

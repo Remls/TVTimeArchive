@@ -1,7 +1,7 @@
 import { $, norm } from './util.js';
 
 /* -------------------------------------------------------------------
-   Global loading indicator — the top bar animates while any async
+   Global loading indicator, the top bar animates while any async
    work (currently TVmaze fetches) is in flight.
    ------------------------------------------------------------------- */
 export const Progress = {
@@ -162,7 +162,7 @@ export const Enrichment = {
    Movie metadata enrichment via Wikidata (keyless, CORS-enabled).
    Resolves a (often localized) movie_name to an English title. Only
    accepts a match that is instance-of a film type AND carries an
-   external id (TMDB/IMDb) — that "id match" guard cuts false hits.
+   external id (TMDB/IMDb), that "id match" guard cuts false hits.
    Wikidata has no film posters, so this is title-only. Separate opt-in
    setting and cache from the TVmaze show enrichment.
    ------------------------------------------------------------------- */

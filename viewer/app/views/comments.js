@@ -63,7 +63,7 @@ export const COMMENT_ICON = { episode: 'ph-television', show: 'ph-television', s
 export function commentCard(e) {
   const label = e.kind === 'episode' && e.season
     ? `${e.target} S${pad2(e.season)}E${pad2(e.episode)}`
-    : (e.target || '—');
+    : (e.target || '-');
   const targetEl = el('span', { class: 'cmt-target' + (e.slug ? ' clickable' : '') }, [
     el('i', { class: 'ph ' + (COMMENT_ICON[e.kind] || 'ph-chat-circle-text') }), ' ' + label,
   ]);

@@ -2,7 +2,7 @@ import { UI } from './state.js';
 import { Backup } from './storage.js';
 import { $, el } from './util.js';
 
-// Inline "image unavailable" placeholder — shown when an image is neither backed
+// Inline "image unavailable" placeholder, shown when an image is neither backed
 // up locally nor reachable on the (possibly retired) server.
 export const BROKEN_IMG = 'data:image/svg+xml,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">' +
@@ -61,7 +61,7 @@ export function resilientImg(backupKey, liveUrl, opts = {}) {
   return img;
 }
 
-// Resolve a notification's image to a { key, url } — the backup key (folder-namespaced)
+// Resolve a notification's image to a { key, url }, the backup key (folder-namespaced)
 // and the live URL. The task-4 backup script mirrors this so local copies line up.
 export function notifImageRef(r) {
   const url = (r.image || '').trim();
@@ -72,7 +72,7 @@ export function notifImageRef(r) {
     const b = (r.url || '').match(/badge_id=([^&]+)/);
     return { key: b ? 'badges/' + b[1] : null, url, kind: 'badge' };
   }
-  return { key: null, url, kind: 'other' };   // show posters etc. — live-only for now
+  return { key: null, url, kind: 'other' };   // show posters etc., live-only for now
 }
 
 // A sized image box (poster / thumbnail / cover) that opens full-size on click.

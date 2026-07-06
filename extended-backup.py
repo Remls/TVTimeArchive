@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""extended-backup.py — build a single portable archive of the TV Time data that lives
+"""extended-backup.py, build a single portable archive of the TV Time data that lives
 behind ids/URLs the GDPR export doesn't spell out, while the servers are still up.
 Import the resulting zip into the archive viewer and it keeps working offline.
 
@@ -14,11 +14,11 @@ understands:
     friends.json    your friends' real names
 
 Images come from TV Time's CDN (no CORS, so a browser can't save them itself). The
-character/friend names come from TV Time's *public* API (api2.tozelabs.com — no login
+character/friend names come from TV Time's *public* API (api2.tozelabs.com, no login
 required), so this needs no credentials. Character posters are TheTVDB URLs, which
 outlive TV Time; friend avatars are on TV Time's CDN, so they're downloaded here.
 
-Pure standard library — needs only Python 3 (no bash, curl, or zip); runs the same on
+Pure standard library, needs only Python 3 (no bash, curl, or zip); runs the same on
 macOS, Linux, and Windows.
 
 Usage:
@@ -330,7 +330,7 @@ def main(argv):
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for path, arc in sorted(files, key=lambda x: x[1]):
             z.write(path, arc)
-    print(f"wrote {out} ({len(files)} files) — import it via ⚙ → Import extended backup in the app.")
+    print(f"wrote {out} ({len(files)} files), import it via ⚙ → Import extended backup in the app.")
     return 0
 
 
