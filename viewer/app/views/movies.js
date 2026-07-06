@@ -72,6 +72,6 @@ export function openMovieDetail(mv) {
   const cmts = STATE.model.comments.list.filter(e => e.kind === 'movie' && norm(e.target) === norm(mv.title));
   if (cmts.length) {
     section(cmts.length === 1 ? '1 comment' : `${fmtInt(cmts.length)} comments`);
-    body.append(el('div', { class: 'cmt-list' }, cmts.map(commentCard)));
+    body.append(el('div', { class: 'cmt-list' }, cmts.map(e => commentCard(e, { compact: true }))));
   }
 }
