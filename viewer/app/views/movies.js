@@ -1,6 +1,6 @@
 import { movieTitle } from '../core/enrich.js';
 import { STATE } from '../core/state.js';
-import { $, el, fmtDate, fmtDuration, fmtInt, norm, slugify } from '../core/util.js';
+import { $, el, fmtDateTime, fmtDuration, fmtInt, norm, slugify } from '../core/util.js';
 import { chip, detailScaffold, listView, posterCard, ratingChip, statusBadge } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 import { commentCard } from './comments.js';
@@ -48,6 +48,7 @@ export function openMovieDetail(mv) {
     subKids: [
       mv.runtime ? el('span', { text: fmtDuration(mv.runtime) }) : null,
       mv.watchCount ? el('span', { html: `<b>${fmtInt(mv.watchCount)}</b> watch${mv.watchCount === 1 ? '' : 'es'}` }) : null,
+      mv.rewatches ? el('span', { html: `<b>${fmtInt(mv.rewatches)}</b> rewatch${mv.rewatches === 1 ? '' : 'es'}` }) : null,
       mv.rating ? ratingChip(mv.rating) : null,
       statusBadge(mv.status),
     ],
@@ -59,9 +60,8 @@ export function openMovieDetail(mv) {
 
   if (mv.watchDates.length) {
     section('Watch history');
-    body.append(el('div', { class: 'detail-dates' }, mv.watchDates.map((d, i) => el('div', { class: 'detail-date' }, [
-      el('i', { class: 'ph ' + (i === 0 ? 'ph-play-circle' : 'ph-arrow-clockwise') }), ' ' + fmtDate(d),
-    ]))));
+    body.append(el('div', { class: 'detail-dates' }, mv.watchDates.map((d, i) =>
+      el('span', { class: 'detail-date', text: (i === 0 ? '▶ ' : '↻ ') + fmtDateTime(d) }))));
   }
 
   if (mv.reactions.length) {

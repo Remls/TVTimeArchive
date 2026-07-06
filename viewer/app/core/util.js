@@ -28,10 +28,15 @@ export const truncate = (s, n) => { s = (s || '').replace(/\s+/g, ' ').trim(); r
 
 export function parseDate(s) {
   if (!s) return null;
-  // "2024-04-14 19:26:37"  or ISO
-  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
-  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
-  const m2 = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  s = String(s);
+  // ISO 8601 carrying its own zone ("…T15:56:33+00:00" or "…Z"): let Date honor the offset.
+  if (/[T ]\d{2}:\d{2}:\d{2}.*(?:Z|[+-]\d{2}:?\d{2})$/.test(s)) { const d = new Date(s); return isNaN(d) ? null : d; }
+  // Naive "YYYY-MM-DD HH:MM:SS": TV Time stores these in UTC (see the notifications table,
+  // which spells out +00:00), so parse as UTC and let display convert to browser-local time.
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
+  // Date-only value (no time): keep it as a local calendar date so the day never shifts.
+  const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m2) return new Date(+m2[1], +m2[2] - 1, +m2[3]);
   const d = new Date(s);
   return isNaN(d) ? null : d;
@@ -39,7 +44,7 @@ export function parseDate(s) {
 
 export const fmtDate = (d) => d ? d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
 
-export const fmtDateTime = (d) => d ? d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+export const fmtDateTime = (d) => d ? d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-';
 
 export const fmtInt = (n) => (n || 0).toLocaleString();
 
