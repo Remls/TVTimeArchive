@@ -15,7 +15,7 @@ Not affiliated with TV Time / Whip Media.
 This is a **reader** for the data backup TV Time gives you — *not* a replacement for
 it. Some of it is best-effort guesswork (how reactions are encoded, how the data fits
 together across many tables). And some things aren't in the export at all — they live
-on TV Time's servers behind images and ids (comment/badge/avatar images, the
+on TV Time's servers behind images and IDs (comment/badge/avatar images, the
 characters you voted for, your friends' names) — so they only survive a shutdown if
 you capture them first: see [Extended backup](#extended-backup).
 
@@ -55,23 +55,27 @@ visits; "Change source .zip file" in the ⚙ menu forgets it and clears local st
 
 ## Views
 
-| View | What it shows |
-|------|---------------|
-| **Overview** | Headline totals and recent activity |
-| **Stats** | Biggest marathons; episodes, hours, and movies per month |
-| **Shows** | Followed / watched / archived shows, episode progress, ratings |
-| **Movies** | Watched / watchlisted / reacted movies, with watch dates |
-| **History** | A chronological watch timeline of episodes and movies |
-| **Ratings** | The 1–5 star ratings you gave shows |
-| **Reactions** | Finish-episode / finish-movie reactions |
-| **Lists** | Your custom lists and collections, resolved to titles with cover art |
-| **Comments** | Every comment you posted, with attached images, likes, and reply threads |
-| **Notifications** | Read-only activity feed — likes, replies, mentions, follow requests, badges, and airing reminders, with avatars |
-| **Badges** | Badges you earned, grouped by type with counts and the shows that earned them |
-| **Characters** | Characters you voted for — actor, poster, and the show/episodes (names & posters from the [extended backup](#extended-backup)) |
-| **Friends** | Your friends — real names and avatars (from the [extended backup](#extended-backup)) |
-| **Profile** | Account details, avatar, and cover image |
-| **All data** | Browse, sort, filter, and export any CSV table in the archive |
+Three nav tabs are umbrellas that group related views — **Watch** (Shows · Movies ·
+Watch history · Lists), **Ratings** (Ratings · Reactions · Character votes), and
+**Community** (Comments · Notifications · Friends · Badges). On desktop their items nest
+in the sidebar; on mobile, tapping the tab opens a popup menu.
+
+| View | *(Group)* | What it shows |
+|------|-----------|---------------|
+| **Home** | | Headline totals, most-watched shows, biggest marathons, and episodes/hours/movies per month |
+| **Shows** | *Watch* | Followed / watched / archived shows, episode progress, ratings |
+| **Movies** | *Watch* | Watched / watchlisted / rated / reacted movies, with watch dates |
+| **Watch history** | *Watch* | A chronological watch timeline of episodes and movies |
+| **Lists** | *Watch* | Your custom lists and collections, resolved to titles with cover art |
+| **Ratings** | *Ratings* | The Bad→Wow star ratings you gave — shows, movies and episodes |
+| **Reactions** | *Ratings* | "How did you feel?" reactions, grouped per episode/movie |
+| **Character votes** | *Ratings* | Characters you voted for — actor, poster, show/episodes (names & posters from the [extended backup](#extended-backup)) |
+| **Comments** | *Community* | Every comment you posted, with attached images, likes, and reply threads |
+| **Notifications** | *Community* | Read-only activity feed — likes, replies, mentions, follow requests, badges, airing reminders |
+| **Friends** | *Community* | Your friends — real names and avatars (from the [extended backup](#extended-backup)) |
+| **Badges** | *Community* | Badges you earned, grouped by type with counts and the shows that earned them |
+| **Profile** | | Account details, avatar, and cover image |
+| **All data** | | Browse, sort, filter, and export any CSV table in the archive |
 
 Curated views support search, sort, filter, and CSV/JSON export.
 
@@ -79,7 +83,7 @@ Curated views support search, sort, filter, and CSV/JSON export.
 
 Some of your data lives behind TV Time's servers, not in the export: **images** on
 its CDN (comment images, notification avatars, badge art, friends' avatars) and
-**names** behind numeric ids (the **characters** you voted for, and your **friends'**
+**names** behind numeric IDs (the **characters** you voted for, and your **friends'**
 real names). While TV Time is online the app fills these in live, but when the servers
 go offline they're gone — unless you capture them first.
 
@@ -123,8 +127,8 @@ only a show or movie name to the API when enabled:
 
 ## Notes on the data
 
-- **Ratings vs reactions.** TV Time reused numeric ids across many versioned "sets"
-  over the years, and the export dropped the set name — so ids are decoded by *source*.
+- **Ratings vs reactions.** TV Time reused numeric IDs across many versioned "sets"
+  over the years, and the export dropped the set name — so IDs are decoded by *source*.
   The `ratings-*` files (+ `tv_show_rate`) are the 5-level star scale (Bad/Meh/Okay/
   Good/Wow) shown under **Ratings** across shows, movies and episodes; the `emotions-*`
   files (+ the feelings hidden in `episode_emotion`) drive **Reactions** — the 12 "how
@@ -135,10 +139,10 @@ only a show or movie name to the API when enabled:
   parent is also one of your comments — other people's comments aren't in the export.
 - **Notifications & badges.** Your activity feed (`notifications-prod-notifications`)
   and earned badges (`user_badge`) each get a view; badge art and per-badge shows are
-  reconstructed by joining ids across tables, and follow-request notifications even
+  reconstructed by joining IDs across tables, and follow-request notifications even
   recover a few usernames.
 - **Friends & characters.** `friend.csv` and `show_character_episode_vote.csv` hold
-  only numeric ids — no names in the export. Their real names/avatars/posters are
+  only numeric IDs — no names in the export. Their real names/avatars/posters are
   resolved from TV Time's public API by the extended-backup step above (before shutdown). Likes
   you *gave* have no dedicated view, but every table stays browsable under **All data**.
 

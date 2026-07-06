@@ -197,6 +197,25 @@ button { font-family: inherit; cursor: pointer; }
 .view-head p { margin: 4px 0 0; color: var(--text-dim); font-size: .9rem; }
 .view-head.with-avatar { display: flex; align-items: center; gap: 14px; }
 
+/* Grouped nav: mobile = popup on tap (caret hidden); desktop = nested (see media query) */
+.nav-caret { display: none; font-size: .78rem; opacity: .6; margin-left: auto; }
+.subnav-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: none; border: none; color: var(--text-dim); text-align: left; white-space: nowrap;
+  font-size: .86rem; padding: 9px 12px; border-radius: var(--radius-sm);
+}
+.subnav-item i { font-size: 1.1rem; }
+.subnav-item:hover { background: var(--surface); color: var(--text); }
+.subnav-item.active { color: var(--accent); }
+/* Mobile popup — the subnav is moved to <body> and gets .floating so it escapes the
+   tabbar's containing block (backdrop-filter) and isn't clipped. */
+.subnav { display: none; }
+.subnav.floating {
+  display: flex; flex-direction: column; position: fixed; z-index: 60; min-width: 180px;
+  padding: 6px; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 12px; box-shadow: 0 14px 34px rgba(0,0,0,.5);
+}
+
 /* ---------- Avatars ---------- */
 .avatar {
   display: inline-grid; place-items: center; flex: 0 0 auto; overflow: hidden;
@@ -472,8 +491,15 @@ details.season[open] > summary::before { transform: rotate(90deg); }
   .tab .tab-ico { font-size: 1.15rem; }
   .tab .avatar.tab-avatar { width: 1.15rem; height: 1.15rem; }   /* match desktop .tab-ico */
   .tab.active { background: var(--surface-2); color: var(--accent); }
+  /* Grouped nav on desktop: children nest inline under the active group (no popup). */
+  .tab.group .nav-caret { display: inline-block; transform: rotate(-90deg); transition: transform .15s; }
+  .tab.group.active .nav-caret { transform: none; }
+  .tabbar .subnav { position: static; display: none; background: none; border: none; box-shadow: none; padding: 0; min-width: 0; gap: 2px; }
+  .tab.group.active + .subnav { display: flex; flex-direction: column; margin: 2px 0 6px; }
+  .tabbar .subnav-item { padding: 8px 14px 8px 42px; }
+  .tabbar .subnav-item.active { background: var(--surface-2); }
   /* Pin "All data" (the last tab) to the bottom of the sidebar. */
-  .tabbar .tab:last-child { margin-top: auto; }
+  .tabbar > .tab:last-child { margin-top: auto; }
   .brand-rail { grid-area: brandbar; display: flex; align-items: center; gap: 10px; padding: 0 18px; height: var(--topbar-h); border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); background: var(--surface); font-weight: 700; }
 
   .stat-grid { grid-template-columns: repeat(4, 1fr); }

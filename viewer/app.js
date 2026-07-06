@@ -271,15 +271,20 @@ const BROKEN_IMG = 'data:image/svg+xml,' + encodeURIComponent(
   '</svg>'
 );
 
-// Simple full-image overlay; click anywhere (or Esc) to close.
+// Full-image overlay. Closes on click, Esc, OR the device Back gesture/button — opening
+// pushes a history entry, so all three routes funnel through popstate (see initLanding).
+let activeLightbox = null;
 function openLightbox(src) {
+  if (activeLightbox) return;
   const img = el('img', { src, alt: '' });
   const overlay = el('div', { class: 'lightbox' }, [img]);
-  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  overlay.addEventListener('click', close);
+  const onKey = (e) => { if (e.key === 'Escape') history.back(); };
+  const remove = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+  overlay.addEventListener('click', () => history.back());   // -> popstate -> close
   document.addEventListener('keydown', onKey);
   document.body.append(overlay);
+  history.pushState({ lightbox: true }, '');
+  activeLightbox = remove;
 }
 
 // A circular user avatar. Prefers a local backup (by full key, e.g. "avatars/<id>" or
@@ -600,7 +605,7 @@ const movieTitle = (title) => MovieMeta.titleFor(title) || title;
 const STATE = {
   tables: {},   // filename -> { fields:[], rows:[] }
   model: null,  // derived, curated datasets
-  view: 'overview',
+  view: 'home',
   listState: {},      // stateKey -> { q, sort, page } preserved across navigation
   pendingScroll: null,// { key, y } — restore scroll once when a list re-renders
 };
@@ -1448,22 +1453,35 @@ function buildOverview(m) {
    NAVIGATION / CHROME
    =================================================================== */
 const VIEWS = [
-  { id: 'overview', label: 'Overview', icon: 'ph-house', render: renderOverview },
-  { id: 'stats',    label: 'Stats',    icon: 'ph-chart-line-up', render: renderStats },
+  { id: 'home',     label: 'Home',     icon: 'ph-house', render: renderHome },
+  // Watch group
   { id: 'shows',    label: 'Shows',    icon: 'ph-television', render: renderShows },
   { id: 'movies',   label: 'Movies',   icon: 'ph-film-slate', render: renderMovies },
-  { id: 'history',  label: 'History',  icon: 'ph-clock-counter-clockwise', render: renderHistory },
+  { id: 'watch-history', label: 'Watch history', icon: 'ph-clock-counter-clockwise', render: renderHistory },
+  { id: 'lists',    label: 'Lists',    icon: 'ph-list-bullets', render: renderLists },
+  // Ratings group
   { id: 'ratings',  label: 'Ratings',  icon: 'ph-star', render: renderRatings },
   { id: 'reactions', label: 'Reactions', icon: 'ph-heart', render: renderReactions },
-  { id: 'lists',    label: 'Lists',    icon: 'ph-list-bullets', render: renderLists },
+  { id: 'character-votes', label: 'Character votes', icon: 'ph-mask-happy', render: renderCharacters },
+  // Community group
   { id: 'comments', label: 'Comments', icon: 'ph-chat-circle-text', render: renderComments },
   { id: 'notifications', label: 'Notifications', icon: 'ph-bell', render: renderNotifications },
-  { id: 'badges',   label: 'Badges',   icon: 'ph-medal', render: renderBadges },
-  { id: 'characters', label: 'Characters', icon: 'ph-mask-happy', render: renderCharacters },
   { id: 'friends',  label: 'Friends',  icon: 'ph-users', render: renderFriends },
+  { id: 'badges',   label: 'Badges',   icon: 'ph-medal', render: renderBadges },
   { id: 'profile',  label: 'Profile',  icon: 'ph-user', render: renderProfile },
   { id: 'raw',      label: 'All data', icon: 'ph-database', render: renderRaw },
 ];
+
+// Views collapsed under one top-level tab. Children must be a contiguous run in VIEWS.
+// Desktop: children nest under the group in the sidebar. Mobile: tapping the group tab
+// opens a popup menu. The URL uses each child's own id (#/ratings), reflecting the sub-view.
+const GROUPS = {
+  watch:     { label: 'Watch',     icon: 'ph-play-circle',  children: ['shows', 'movies', 'watch-history', 'lists'] },
+  ratings:   { label: 'Ratings',   icon: 'ph-star',         children: ['ratings', 'reactions', 'character-votes'] },
+  community: { label: 'Community', icon: 'ph-users-three',  children: ['comments', 'notifications', 'friends', 'badges'] },
+};
+const GROUP_OF = {};   // childViewId -> groupId
+for (const [gid, g] of Object.entries(GROUPS)) for (const c of g.children) GROUP_OF[c] = gid;
 
 function buildChrome() {
   // desktop brand rail (inserted once)
@@ -1475,18 +1493,70 @@ function buildChrome() {
   bar.innerHTML = '';
   const prof = STATE.model && STATE.model.profile;
   const hasAvatar = prof && (prof.avatar || (prof.userId && Backup.urlFor('avatars/' + prof.userId)));
+  const seenGroup = new Set();
+  const activeNav = GROUP_OF[STATE.view] ? 'group:' + GROUP_OF[STATE.view] : STATE.view;
+  const isDesktop = () => window.matchMedia('(min-width: 860px)').matches;
   for (const v of VIEWS) {
+    const gid = GROUP_OF[v.id];
+    if (gid) {
+      if (seenGroup.has(gid)) continue;   // one tab per group, at its first child's slot
+      seenGroup.add(gid);
+      const g = GROUPS[gid], navId = 'group:' + gid;
+      const groupTab = el('button', { class: 'tab group' + (activeNav === navId ? ' active' : ''), 'data-view': navId },
+        [el('i', { class: 'ph ' + g.icon + ' tab-ico' }), el('span', { text: g.label }), el('i', { class: 'ph ph-caret-down nav-caret' })]);
+      const sub = el('div', { class: 'subnav' });
+      for (const cid of g.children) {
+        const cv = VIEWS.find(x => x.id === cid); if (!cv) continue;
+        const item = el('button', { class: 'subnav-item' + (STATE.view === cid ? ' active' : ''), 'data-view': cid },
+          [el('i', { class: 'ph ' + cv.icon }), el('span', { text: cv.label })]);
+        item.addEventListener('click', () => { closeNavMenus(); navigate({ view: cid }); });
+        sub.append(item);
+      }
+      groupTab.addEventListener('click', () => {
+        // Desktop: enter the group (children nest via CSS). Mobile: toggle the popup.
+        if (isDesktop()) { closeNavMenus(); navigate({ view: g.children[0] }); }
+        else {
+          const isOpen = navPopup && navPopup.tab === groupTab;
+          closeNavMenus();
+          if (!isOpen) openNavMenu(groupTab, sub);
+        }
+      });
+      bar.append(groupTab, sub);
+      continue;
+    }
     // The Profile tab shows your avatar (when available) instead of the generic icon.
     const icon = (v.id === 'profile' && hasAvatar)
       ? avatarEl(prof.avatar, prof.displayName, prof.userId && 'avatars/' + prof.userId, 'tab-avatar')
       : el('i', { class: 'ph ' + v.icon + ' tab-ico' });
     bar.append(el('button', {
-      class: 'tab' + (v.id === STATE.view ? ' active' : ''),
+      class: 'tab' + (activeNav === v.id ? ' active' : ''),
       'data-view': v.id,
-      onclick: () => navigate({ view: v.id }),
+      onclick: () => { closeNavMenus(); navigate({ view: v.id }); },
     }, [icon, el('span', { text: v.label })]));
   }
   buildSettingsMenu();
+}
+
+// Mobile nav popup: move the group's subnav to <body> (escaping the tabbar's
+// backdrop-filter containing block) and anchor it above the tab.
+let navPopup = null;
+function openNavMenu(tab, sub) {
+  document.body.appendChild(sub);
+  sub.classList.add('floating');
+  tab.classList.add('menu-open');
+  const r = tab.getBoundingClientRect();
+  sub.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 200)) + 'px';
+  sub.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+  navPopup = { tab, sub };
+}
+function closeNavMenus() {
+  if (!navPopup) return;
+  const { tab, sub } = navPopup;
+  tab.classList.remove('menu-open');
+  sub.classList.remove('floating');
+  sub.style.left = sub.style.bottom = '';
+  tab.after(sub);   // restore it into the tabbar (for the desktop nested layout)
+  navPopup = null;
 }
 
 function resetApp() {
@@ -1595,7 +1665,12 @@ function buildSettingsMenu() {
 
 function renderView(id) {
   STATE.view = id;
-  for (const t of document.querySelectorAll('.tab')) t.classList.toggle('active', t.dataset.view === id);
+  const navId = GROUP_OF[id] ? 'group:' + GROUP_OF[id] : id;   // a group child highlights its group tab
+  for (const t of document.querySelectorAll('.tab, .subnav-item')) {
+    const dv = t.dataset.view;
+    t.classList.toggle('active', dv === id || dv === navId);
+  }
+  closeNavMenus();
   $('#globalSearch').hidden = true;
   const root = $('#viewRoot');
   root.innerHTML = '';
@@ -1612,12 +1687,12 @@ const isView = (id) => VIEWS.some(v => v.id === id);
 
 function stateToHash(s) {
   if (s.view === 'shows' && s.detail) return `#/shows/${s.detail}`;
-  return `#/${s.view || 'overview'}`;
+  return `#/${s.view || 'home'}`;
 }
 function hashToState() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   if (parts[0] === 'shows' && parts[1]) return { view: 'shows', detail: decodeURIComponent(parts[1]) };
-  return { view: isView(parts[0]) ? parts[0] : 'overview' };
+  return { view: isView(parts[0]) ? parts[0] : 'home' };
 }
 function applyState(state) {
   const s = state || hashToState();
@@ -1625,7 +1700,7 @@ function applyState(state) {
     const show = STATE.model.shows.find(sh => slugify(sh.title) === s.detail);
     if (show) { openShowDetail(show); return; }
   }
-  renderView(isView(s.view) ? s.view : 'overview');
+  renderView(isView(s.view) ? s.view : 'home');
 }
 function navigate(state, replace) {
   history[replace ? 'replaceState' : 'pushState'](state, '', stateToHash(state));
@@ -1679,12 +1754,12 @@ function showLineItem(title, seriesId, mainKids, rightKids) {
 const showPosterItem = (title, seriesId) => ({ seriesId: seriesId || Enrichment.seriesIdByName[norm(title)] || '', title });
 
 /* ===================================================================
-   VIEW: Overview
+   VIEW: Home — headline stats, most-watched shows, marathons + monthly charts
    =================================================================== */
-function renderOverview(root) {
+function renderHome(root) {
   const o = STATE.model.overview;
   const p = STATE.model.profile;
-  const title = p.displayName ? `${p.displayName}’s archive` : 'Overview';
+  const title = p.displayName ? `${p.displayName}’s archive` : 'Home';
   const subtitle = `Tracked since ${fmtDate(o.firstWatch)} · last activity ${fmtDate(o.lastWatch)}`;
   root.append(el('div', { class: 'view-head with-avatar' }, [
     avatarEl(p.avatar, p.displayName, p.userId && 'avatars/' + p.userId, 'lg'),
@@ -1725,11 +1800,25 @@ function renderOverview(root) {
   root.append(top.length ? list : el('div', { class: 'empty', text: 'No watch data found.' }));
   ensureShowPosters(top.map(s => showPosterItem(s.title, s.id)));
 
-  root.append(el('div', { class: 'section-title', text: 'Recent activity' }));
-  const recent = STATE.model.history.slice(0, 6);
-  const rlist = el('div', { class: 'cards' });
-  for (const ev of recent) rlist.append(historyItem(ev));
-  root.append(recent.length ? rlist : el('div', { class: 'empty', text: 'No recent activity.' }));
+  // ---- Stats (marathons + monthly charts), folded into Home ----
+  const st = STATE.model.stats;
+  if (st && st.hasData) {
+    if (st.marathons.length) {
+      root.append(el('div', { class: 'section-title', text: 'Biggest marathons' }));
+      const mcards = el('div', { class: 'cards two-col' });
+      for (const m of st.marathons) {
+        mcards.append(showLineItem(m.show, null, [
+          el('div', { class: 'item-title', text: m.show }),
+          el('div', { class: 'item-meta' }, [el('span', { html: `<b>${fmtInt(m.episodes)}</b> episodes in <b>${fmtInt(m.days)}</b> day${m.days === 1 ? '' : 's'}` })]),
+        ]));
+      }
+      root.append(mcards);
+      ensureShowPosters(st.marathons.map(m => showPosterItem(m.show)));
+    }
+    if (st.epByMonth.length) { root.append(el('div', { class: 'section-title', text: 'Episodes watched per month' })); barChart(root, st.epByMonth); }
+    if (st.hoursByMonth.length) { root.append(el('div', { class: 'section-title', text: 'Hours watched per month' })); barChart(root, st.hoursByMonth, v => `${fmtInt(v)}h`); }
+    if (st.moviesByMonth.length && st.moviesByMonth.some(d => d.value)) { root.append(el('div', { class: 'section-title', text: 'Movies watched per month' })); barChart(root, st.moviesByMonth); }
+  }
 }
 
 /* ===================================================================
@@ -1749,37 +1838,6 @@ function barChart(root, data, fmt) {
     ]));
   }
   root.append(wrap);
-}
-
-function renderStats(root) {
-  const s = STATE.model.stats;
-  viewHead(root, 'Stats', 'Marathons and monthly activity');
-  if (!s || !s.hasData) { root.append(el('div', { class: 'empty', text: 'No stats found.' })); return; }
-
-  if (s.marathons.length) {
-    root.append(el('div', { class: 'section-title', text: 'Biggest marathons' }));
-    const cards = el('div', { class: 'cards two-col' });
-    for (const m of s.marathons) {
-      cards.append(showLineItem(m.show, null, [
-        el('div', { class: 'item-title', text: m.show }),
-        el('div', { class: 'item-meta' }, [el('span', { html: `<b>${fmtInt(m.episodes)}</b> episodes in <b>${fmtInt(m.days)}</b> day${m.days === 1 ? '' : 's'}` })]),
-      ]));
-    }
-    root.append(cards);
-    ensureShowPosters(s.marathons.map(m => showPosterItem(m.show)));
-  }
-  if (s.epByMonth.length) {
-    root.append(el('div', { class: 'section-title', text: 'Episodes watched per month' }));
-    barChart(root, s.epByMonth);
-  }
-  if (s.hoursByMonth.length) {
-    root.append(el('div', { class: 'section-title', text: 'Hours watched per month' }));
-    barChart(root, s.hoursByMonth, v => `${fmtInt(v)}h`);
-  }
-  if (s.moviesByMonth.length && s.moviesByMonth.some(d => d.value)) {
-    root.append(el('div', { class: 'section-title', text: 'Movies watched per month' }));
-    barChart(root, s.moviesByMonth);
-  }
 }
 
 /* Shared toolbar: row 1 = search (+ optional Export dropdown, pinned top-right so it's
@@ -2251,11 +2309,11 @@ function renderHistory(root) {
     // Lazily fetch episode titles/thumbnails for the shows on this page; redraw when they arrive.
     if (Enrichment.enabled) {
       Enrichment.ensure(slice.filter(e => e.type === 'episode'), true)
-        .then(n => { if (n > 0 && STATE.view === 'history') draw(); });
+        .then(n => { if (n > 0 && STATE.view === 'watch-history') draw(); });
     }
     if (MovieMeta.enabled) {
       MovieMeta.ensure(slice.filter(e => e.type === 'movie').map(e => e.title))
-        .then(n => { if (n > 0 && STATE.view === 'history') draw(); });
+        .then(n => { if (n > 0 && STATE.view === 'watch-history') draw(); });
     }
     persist();
   }
@@ -2706,7 +2764,7 @@ function extendedNote(unresolved, total) {
   return el('div', { class: 'cmt-backup' }, [
     el('div', { class: 'cmt-backup-status' }, [
       el('div', { class: 'cmt-backup-title' }, [el('i', { class: 'ph ph-info' }), el('strong', { text: 'Names & images' })]),
-      el('p', {}, [`${fmtInt(unresolved)} of ${fmtInt(total)} still show ids only. `,
+      el('p', {}, [`${fmtInt(unresolved)} of ${fmtInt(total)} still show IDs only. `,
         el('a', { href: 'https://github.com/Remls/TVTimeArchive#extended-backup', target: '_blank', rel: 'noopener noreferrer', text: 'Generate an extended backup' }),
         ' and import it (⚙) to fill these in.']),
     ]),
@@ -2716,13 +2774,13 @@ function extendedNote(unresolved, total) {
 function renderCharacters(root) {
   const list = STATE.model.characters;
   if (!list.length) {
-    viewHead(root, 'Characters', '');
+    viewHead(root, 'Character votes', '');
     root.append(el('div', { class: 'empty', text: 'No character votes in this archive.' }));
     return;
   }
   const unresolved = list.filter(c => !c.name).length;
   listView(root, {
-    title: 'Characters', subtitle: `${fmtInt(list.length)} voted for`, items: list, stateKey: 'characters', twoCol: true,
+    title: 'Character votes', subtitle: `${fmtInt(list.length)} voted for`, items: list, stateKey: 'character-votes', twoCol: true,
     searchText: (c) => `${c.name || ''} ${c.actor || ''} ${c.shows.join(' ')}`,
     beforeList: unresolved ? (pre) => pre.append(extendedNote(unresolved, list.length)) : null,
     sorts: [
@@ -2926,7 +2984,14 @@ function initLanding() {
   dz.addEventListener('drop', (e) => { const f = e.dataTransfer.files[0]; if (f) loadArchive(f); });
 
   // Device Back button / hash change → replay the nav state (only once an archive is loaded).
-  window.addEventListener('popstate', (e) => { if (STATE.model) applyState(e.state || hashToState()); });
+  // If the lightbox is open, Back just closes it (and doesn't re-render the view).
+  window.addEventListener('popstate', (e) => {
+    if (activeLightbox) { const r = activeLightbox; activeLightbox = null; r(); return; }
+    if (STATE.model) applyState(e.state || hashToState());
+  });
+
+  // Close the mobile nav popup when tapping outside it.
+  document.addEventListener('click', (e) => { if (!e.target.closest('.tab.group') && !e.target.closest('.subnav')) closeNavMenus(); });
 
   // Boot: check IndexedDB first. If an archive is stored, auto-load it (staying in the
   // loading state); otherwise reveal the dropzone. This avoids flashing the landing.
