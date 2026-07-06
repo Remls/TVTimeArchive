@@ -79,9 +79,9 @@ export function commentCard(e, opts = {}) {
 
   const kids = [el('div', { class: 'cmt-head' }, head)];
 
-  // The parent quote is skipped in compact mode: the parent comment is already shown
-  // right there (e.g. under the same episode), so quoting it just reads as a duplicate.
-  if (e.isReply && !opts.compact) {
+  // Always mark replies (even in the compact show-detail view) so it's clear a comment
+  // is a reply to another comment, including your own.
+  if (e.isReply) {
     kids.push(e.parent
       ? el('div', { class: 'cmt-parent' }, [el('i', { class: 'ph ph-arrow-bend-up-left' }), el('span', { text: truncate(e.parent.text, 140) })])
       : el('div', { class: 'cmt-parent muted' }, [el('i', { class: 'ph ph-arrow-bend-up-left' }), el('span', { text: 'Reply to a comment that isn’t in the export' })]));
@@ -90,10 +90,10 @@ export function commentCard(e, opts = {}) {
   if (e.text) kids.push(el('div', { class: 'cmt-text', text: e.text }));
   if (e.images.length) kids.push(el('div', { class: 'cmt-images' }, e.images.map(commentImageEl)));
 
-  const meta = [];
-  if (e.likes) meta.push(el('span', { html: `<i class="ph-fill ph-heart" style="color:var(--accent)"></i> ${fmtInt(e.likes)}` }));
-  if (e.images.length) meta.push(el('span', { html: `<i class="ph ph-image"></i> ${fmtInt(e.images.length)}` }));
-  if (meta.length) kids.push(el('div', { class: 'cmt-metaline' }, meta));
+  // Only the like count is worth a meta line; images are always singular and shown inline.
+  if (e.likes) kids.push(el('div', { class: 'cmt-metaline' }, [
+    el('span', { html: `<i class="ph-fill ph-heart" style="color:var(--accent)"></i> ${fmtInt(e.likes)}` }),
+  ]));
 
   return el('article', { class: 'cmt' }, kids);
 }
