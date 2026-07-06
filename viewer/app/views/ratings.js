@@ -38,8 +38,8 @@ export function renderRatings(root) {
         ]),
       ];
       // showLineItem gives every row the poster slot (movies get a blank spacer) and
-      // opens the show detail for shows/episodes; movies have no detail page.
-      return showLineItem(r.title, null, main, [ratingChip(r)]);
+      // opens the show detail for shows/episodes, or the movie detail for movies.
+      return showLineItem(r.title, null, main, [ratingChip(r)], r.kind);
     },
     exportName: 'tvtime-ratings',
     exportRow: (r) => ({ kind: r.kind, title: r.title, stars: r.stars, label: r.label, season: r.season ?? '', episode: r.episode ?? '', rated_at: r.date ? r.date.toISOString() : '' }),

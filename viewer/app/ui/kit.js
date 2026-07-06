@@ -46,6 +46,22 @@ export function knownShowSlug(title) {
   return m._showSlugs.has(slug) ? slug : null;
 }
 
+export function knownMovieSlug(title) {
+  const slug = slugify(title || '');
+  if (!slug) return null;
+  const m = STATE.model;
+  if (!m._movieSlugs) m._movieSlugs = new Set(m.movies.map(mv => slugify(mv.title)));
+  return m._movieSlugs.has(slug) ? slug : null;
+}
+
+// Where does a title of the given kind link? Returns { view, detail } or null.
+// Movies open the movie page; shows and episodes open the show page.
+export function entityNav(kind, title) {
+  if (kind === 'movie') { const s = knownMovieSlug(title); return s ? { view: 'movies', detail: s } : null; }
+  const s = knownShowSlug(title);
+  return s ? { view: 'shows', detail: s } : null;
+}
+
 // A poster box that fills now if cached, else is tagged to be filled once the fetch lands.
 export function autoPoster(title, seriesId) {
   const box = el('div', { class: 'item-poster' });
@@ -95,15 +111,19 @@ export function ensureShowPosters(items) {
   Enrichment.ensure(items, false).then(n => { if (n > 0) fillPostersIn(root); });
 }
 
-// A show row: optional poster + main/right content; navigates to the show when known.
-export function showLineItem(title, seriesId, mainKids, rightKids) {
-  const slug = knownShowSlug(title);
+// A media row: optional poster + main/right content; navigates to the show or movie
+// detail when known. kind ('show' | 'episode' | 'movie') picks the destination.
+export function showLineItem(title, seriesId, mainKids, rightKids, kind) {
+  const nav = entityNav(kind || 'show', title);
   const kids = [];
   if (Enrichment.enabled) kids.push(autoPoster(title, seriesId));
   kids.push(el('div', { class: 'item-main' }, mainKids));
   if (rightKids && rightKids.length) kids.push(el('div', { class: 'item-right' }, rightKids));
-  const item = el('div', { class: 'item' + (slug ? ' clickable' : '') }, kids);
-  if (slug) { item.title = 'View episode progress'; item.addEventListener('click', () => navigate({ view: 'shows', detail: slug })); }
+  const item = el('div', { class: 'item' + (nav ? ' clickable' : '') }, kids);
+  if (nav) {
+    item.title = nav.view === 'movies' ? 'View movie details' : 'View episode progress';
+    item.addEventListener('click', () => navigate(nav));
+  }
   return item;
 }
 

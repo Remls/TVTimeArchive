@@ -2,7 +2,7 @@ import { Enrichment, MovieMeta, movieTitle } from '../core/enrich.js';
 import { zoomImg } from '../core/media.js';
 import { STATE } from '../core/state.js';
 import { $, download, el, fmtDate, fmtDateTime, fmtDuration, fmtInt, norm, toCSV } from '../core/util.js';
-import { buildToolbar, knownShowSlug, menuSelect, viewHead } from '../ui/kit.js';
+import { buildToolbar, entityNav, menuSelect, viewHead } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 
 export function historyItem(ev) {
@@ -29,9 +29,9 @@ export function historyItem(ev) {
   kids.push(el('div', { class: 'item-right' }, [
     el('span', { class: 'badge ' + (ev.type === 'movie' ? 'warn' : 'accent'), html: ev.type === 'movie' ? '<i class="ph ph-film-slate"></i>' : '<i class="ph ph-television"></i>' }),
   ]));
-  const slug = ev.type === 'episode' ? knownShowSlug(ev.title) : null;
-  const item = el('div', { class: 'item' + (slug ? ' clickable' : '') }, kids);
-  if (slug) { item.title = 'View episode progress'; item.addEventListener('click', () => navigate({ view: 'shows', detail: slug })); }
+  const nav = entityNav(ev.type, ev.title);
+  const item = el('div', { class: 'item' + (nav ? ' clickable' : '') }, kids);
+  if (nav) { item.title = nav.view === 'movies' ? 'View movie details' : 'View episode progress'; item.addEventListener('click', () => navigate(nav)); }
   return item;
 }
 

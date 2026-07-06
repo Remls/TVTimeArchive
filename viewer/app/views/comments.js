@@ -3,7 +3,7 @@ import { STATE } from '../core/state.js';
 import { Backup } from '../core/storage.js';
 import { $, el, fmtDate, fmtInt, truncate } from '../core/util.js';
 import { refreshExtended } from '../model/model.js';
-import { backupNote, listView } from '../ui/kit.js';
+import { backupNote, entityNav, listView } from '../ui/kit.js';
 import { navigate, renderView } from '../ui/router.js';
 import { pad2 } from './shows.js';
 
@@ -64,10 +64,11 @@ export function commentCard(e) {
   const label = e.kind === 'episode' && e.season
     ? `${e.target} S${pad2(e.season)}E${pad2(e.episode)}`
     : (e.target || '-');
-  const targetEl = el('span', { class: 'cmt-target' + (e.slug ? ' clickable' : '') }, [
+  const nav = entityNav(e.kind, e.target);
+  const targetEl = el('span', { class: 'cmt-target' + (nav ? ' clickable' : '') }, [
     el('i', { class: 'ph ' + (COMMENT_ICON[e.kind] || 'ph-chat-circle-text') }), ' ' + label,
   ]);
-  if (e.slug) targetEl.addEventListener('click', () => navigate({ view: 'shows', detail: e.slug }));
+  if (nav) targetEl.addEventListener('click', () => navigate(nav));
 
   const kids = [el('div', { class: 'cmt-head' }, [targetEl, el('span', { class: 'cmt-date', text: fmtDate(e.date) })])];
 

@@ -2,7 +2,7 @@ import { Enrichment, movieTitle } from '../core/enrich.js';
 import { zoomImg } from '../core/media.js';
 import { STATE } from '../core/state.js';
 import { $, el, fmtDate, fmtInt, norm } from '../core/util.js';
-import { ensureShowPosters, knownShowSlug, listView, posterCard, showPosterItem } from '../ui/kit.js';
+import { ensureShowPosters, entityNav, knownShowSlug, listView, posterCard, showPosterItem } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 
 export function renderReactions(root) {
@@ -67,9 +67,9 @@ export function renderReactions(root) {
         ]),
         el('div', { class: 'reaction-chips' }, r.reactions.map(l => el('span', { class: 'badge accent', text: l }))),
       ]));
-      const slug = r.kind === 'episode' ? knownShowSlug(r.title) : null;
-      const item = el('div', { class: 'item' + (slug ? ' clickable' : '') }, kids);
-      if (slug) { item.title = 'View episode progress'; item.addEventListener('click', () => navigate({ view: 'shows', detail: slug })); }
+      const nav = entityNav(r.kind, r.title);
+      const item = el('div', { class: 'item' + (nav ? ' clickable' : '') }, kids);
+      if (nav) { item.title = nav.view === 'movies' ? 'View movie details' : 'View episode progress'; item.addEventListener('click', () => navigate(nav)); }
       return item;
     },
     exportName: 'tvtime-reactions',

@@ -1,12 +1,11 @@
 import { movieTitle } from '../core/enrich.js';
 import { STATE } from '../core/state.js';
-import { $, el, fmtInt, slugify } from '../core/util.js';
-import { emptyState, ensureShowPosters, posterCard, showPosterItem, viewHead } from '../ui/kit.js';
+import { el, fmtInt } from '../core/util.js';
+import { emptyState, ensureShowPosters, entityNav, posterCard, showPosterItem, viewHead } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 
 export function renderLists(root) {
   const lists = STATE.model.lists;
-  const showSlugs = new Set(STATE.model.shows.map(s => slugify(s.title)));   // which chips can open a detail
   viewHead(root, 'Lists', lists.length ? `${lists.length} lists` : '');
   if (!lists.length) { root.append(emptyState('No lists', { icon: 'ph-list-bullets' })); return; }
 
@@ -29,12 +28,11 @@ export function renderLists(root) {
     for (const it of l.items) {
       const isMovie = it.type === 'movie';
       const label = it.title ? (isMovie ? movieTitle(it.title) : it.title) : `${it.type || 'item'} ${it.id || it.uuid || '?'}`;
-      const slug = it.type === 'series' && it.title ? slugify(it.title) : null;
-      const clickable = slug && showSlugs.has(slug);
+      const nav = it.title ? entityNav(isMovie ? 'movie' : 'show', it.title) : null;
       if (it.type === 'series' && it.title) posterItems.push(showPosterItem(it.title));
       gallery.append(posterCard({
         kind: isMovie ? 'movie' : 'show', title: label,
-        onClick: clickable ? () => navigate({ view: 'shows', detail: slug }) : null,
+        onClick: nav ? () => navigate(nav) : null,
       }));
     }
     det.append(gallery);
