@@ -1,10 +1,10 @@
-# Your TV Time export; image backup script will look inside this folder by default
+# Your TV Time export; backup.py looks inside this folder by default
 gdpr-data/
 gdpr-data.zip
 
-# Image backup produced by backup-images.py
-image-backup/
-tvt-image-backup.zip
+# Files produced by extended-backup.py
+tvt-extended-backup/
+tvt-extended-backup.zip
 
 # Others
 __pycache__/

@@ -160,15 +160,14 @@ const IDB = {
 };
 
 /* -------------------------------------------------------------------
-   Image backup (comment images, avatars, badge art).
-   These live on TV Time's CDN, which sends no CORS headers — so a browser can
-   display them but can't read their bytes to back them up. backup-images.py (repo
-   root) downloads them into a foldered zip; this store holds that zip's contents
-   locally (keyed by "<folder>/<name>") so the images keep rendering after the
-   servers go dark. All blobs are loaded into object URLs at startup so rendering
-   can stay synchronous.
+   Backup store — the imported "extended backup" (comment images, avatars, badge art,
+   character posters, friend avatars + resolved names). Images live on TV Time's CDN
+   (no CORS) and names behind ids, so extended-backup.py (repo root) harvests them into one
+   foldered zip; this store holds that zip's image blobs locally (keyed by
+   "<folder>/<name>") plus the names JSON (in localStorage). Blobs load into object
+   URLs at startup so rendering stays synchronous.
    ------------------------------------------------------------------- */
-const ImageBackup = {
+const Backup = {
   DB: 'tvt-images', STORE: 'memes',
   urls: new Map(),   // memeId(string) -> object URL
   _open() {
@@ -190,22 +189,29 @@ const ImageBackup = {
       });
       this.urls.forEach(u => URL.revokeObjectURL(u)); this.urls.clear();
       keys.forEach((k, i) => { if (blobs[i]) this.urls.set(String(k), URL.createObjectURL(blobs[i])); });
-    } catch (e) { console.warn('ImageBackup init failed', e); }
+    } catch (e) { console.warn('Backup init failed', e); }
   },
   async importZip(file) {
     const zip = await JSZip.loadAsync(file);
-    const entries = Object.values(zip.files).filter(f => !f.dir && /\.(jpe?g|png|gif|webp)$/i.test(f.name));
-    if (!entries.length) throw new Error('No images found in that zip.');
+    const all = Object.values(zip.files).filter(f => !f.dir);
+    const images = all.filter(f => /\.(jpe?g|png|gif|webp)$/i.test(f.name));
+    const metas = all.filter(f => /(^|\/)(characters|friends)\.json$/i.test(f.name));
+    if (!images.length && !metas.length) throw new Error('No backup data found in that zip.');
     const db = await this._open();
     let n = 0;
-    for (const entry of entries) {
-      // Key by folder-namespaced path minus extension, e.g. "comments/450347-marked"
-      // or "avatars/123". Older flat zips ("450347-marked.jpg") key without a folder.
+    for (const entry of images) {
+      // Key by folder-namespaced path minus extension, e.g. "comments/450347-marked",
+      // "avatars/123", "characters/63315360". Old flat zips key without a folder.
       const key = entry.name.replace(/^\.?\//, '').replace(/\.[^./]+$/, '');
       if (!key) continue;
       const blob = await entry.async('blob');
       await new Promise((res, rej) => { const tx = db.transaction(this.STORE, 'readwrite'); tx.objectStore(this.STORE).put(blob, key); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
       n++;
+    }
+    // Resolved names (characters.json / friends.json) — kept in localStorage.
+    for (const entry of metas) {
+      const base = entry.name.split('/').pop().replace(/\.json$/i, '');   // 'characters' | 'friends'
+      try { localStorage.setItem('tvt.' + base, await entry.async('string')); n++; } catch {}
     }
     await this.init();
     return n;
@@ -215,6 +221,7 @@ const ImageBackup = {
       const db = await this._open();
       await new Promise((res) => { const tx = db.transaction(this.STORE, 'readwrite'); tx.objectStore(this.STORE).clear(); tx.oncomplete = res; tx.onerror = res; });
     } catch {}
+    try { localStorage.removeItem('tvt.characters'); localStorage.removeItem('tvt.friends'); } catch {}
     const n = this.urls.size;
     this.urls.forEach(u => URL.revokeObjectURL(u)); this.urls.clear();
     return n;
@@ -265,7 +272,7 @@ function openLightbox(src) {
 // live CloudFront picture, then initials — same local-then-live rule as other images.
 function avatarEl(url, name, userId, cls) {
   const wrap = el('span', { class: 'avatar' + (cls ? ' ' + cls : '') });
-  const local = userId ? ImageBackup.urlFor('avatars/' + userId) : null;
+  const local = userId ? Backup.urlFor('avatars/' + userId) : null;
   const src = local || (url || '').trim();
   const fallback = () => wrap.append(el('span', { class: 'avatar-fallback', text: (name || '').trim().slice(0, 1).toUpperCase() || '?' }));
   if (src) {
@@ -281,7 +288,7 @@ function avatarEl(url, name, userId, cls) {
 // A plain <img> that tries a local backup (by key) then a live URL, then a placeholder.
 // Same local-then-live rule as everything else; used for badge art, posters, etc.
 function resilientImg(backupKey, liveUrl, opts = {}) {
-  const local = backupKey ? ImageBackup.urlFor(backupKey) : null;
+  const local = backupKey ? Backup.urlFor(backupKey) : null;
   const url = (liveUrl || '').trim();
   const img = el('img', { src: local || url || BROKEN_IMG, loading: 'lazy', alt: opts.alt || '', class: opts.class || '' });
   if (!local) {
@@ -621,7 +628,7 @@ async function loadArchive(file, opts = {}) {
   for (const s of STATE.model.shows) if (s.id) Enrichment.seriesIdByName[norm(s.title)] = s.id;
 
   // Load any locally-backed-up comment images so they render from local copies.
-  await ImageBackup.init();
+  await Backup.init();
 
   // Persist the raw archive locally (IndexedDB) so it reloads next visit. Never uploaded.
   if (!opts.restoring) IDB.put(file, file.name || 'archive.zip');
@@ -1403,7 +1410,7 @@ function buildChrome() {
   const bar = $('#tabbar');
   bar.innerHTML = '';
   const prof = STATE.model && STATE.model.profile;
-  const hasAvatar = prof && (prof.avatar || (prof.userId && ImageBackup.urlFor('avatars/' + prof.userId)));
+  const hasAvatar = prof && (prof.avatar || (prof.userId && Backup.urlFor('avatars/' + prof.userId)));
   for (const v of VIEWS) {
     // The Profile tab shows your avatar (when available) instead of the generic icon.
     const icon = (v.id === 'profile' && hasAvatar)
@@ -1457,17 +1464,21 @@ function buildSettingsMenu() {
   });
   const movieNote = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-warning-circle' }), el('span', { text: 'This data is fetched from the Wikidata API, and may not be accurate.' })]);
 
-  // Image backup: import a zip made by backup-images.py (comment images, avatars, badges).
-  const IMPORT_LABEL = 'Import image backup…';
+  // Extended backup: import the zip made by extended-backup.py (images + resolved names).
+  const IMPORT_LABEL = 'Import extended backup…';
   const importItem = el('button', { class: 'menu-item' }, [el('span', { text: IMPORT_LABEL })]);
   importItem.addEventListener('click', (e) => {
     e.stopPropagation();
-    pickImageBackup((err, count) => {
+    pickBackup((err, count) => {
       importItem.firstChild.textContent = err ? (err.message || 'Import failed') : `Imported ${fmtInt(count)} ✓`;
       setTimeout(() => { importItem.firstChild.textContent = IMPORT_LABEL; }, 1800);
       if (!err) applyState(history.state || hashToState());
     });
   });
+  const importNote = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-info' }), el('span', {}, [
+    'Comment images, avatars, badges, characters & friends. Generate it with extended-backup.py — see the ',
+    el('a', { href: 'https://github.com/Remls/TVTimeArchive#extended-backup', target: '_blank', rel: 'noopener noreferrer', text: 'README' }), '.',
+  ])]);
 
   // Umbrella "Clear cache…" — expands to per-cache clears, each confirm-gated.
   const clearWrap = el('div', { class: 'menu-sub-wrap' });
@@ -1488,7 +1499,7 @@ function buildSettingsMenu() {
   clearSub.append(
     makeClear('Show metadata', 'Clear cached show metadata?', () => Enrichment.clearCache()),
     makeClear('Movie titles', 'Clear cached movie titles?', () => MovieMeta.clearCache()),
-    makeClear('Image backup', 'Clear all imported images (comments, avatars, badges) from this browser?', () => ImageBackup.clear()),
+    makeClear('Imported backup', 'Clear the imported backup (images + resolved names) from this browser?', () => Backup.clear()),
   );
   clearToggle.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -1504,7 +1515,7 @@ function buildSettingsMenu() {
   });
 
   pop.append(toggleItem, note, el('div', { class: 'menu-sep' }), movieToggle, movieNote,
-    el('div', { class: 'menu-sep' }), importItem,
+    el('div', { class: 'menu-sep' }), importItem, importNote,
     el('div', { class: 'menu-sep' }), clearWrap,
     el('div', { class: 'menu-sep' }), changeItem);
   host.append(gear, pop);
@@ -2368,12 +2379,12 @@ function renderLists(root) {
 function imageCandidates(m) {
   const out = [];
   const add = (u) => { if (u && !out.includes(u)) out.push(u); };
-  add(ImageBackup.urlFor('comments/' + m.id + '-clean'));   // local clean backup (foldered)
-  add(ImageBackup.urlFor(m.id + '-clean'));                 // …or legacy flat zip
+  add(Backup.urlFor('comments/' + m.id + '-clean'));   // local clean backup (foldered)
+  add(Backup.urlFor(m.id + '-clean'));                 // …or legacy flat zip
   add(m.clean);                                             // live clean
-  add(ImageBackup.urlFor('comments/' + m.id + '-marked'));  // local marked backup (foldered)
-  add(ImageBackup.urlFor(m.id + '-marked'));                // …or legacy flat zip
-  add(ImageBackup.urlFor(m.id));                            // …or very old single-file zip
+  add(Backup.urlFor('comments/' + m.id + '-marked'));  // local marked backup (foldered)
+  add(Backup.urlFor(m.id + '-marked'));                // …or legacy flat zip
+  add(Backup.urlFor(m.id));                            // …or very old single-file zip
   add(m.url);                                               // live marked
   out.push(BROKEN_IMG);
   return out;
@@ -2400,13 +2411,13 @@ function commentImageEl(m) {
 }
 
 // Open a file picker for a backup zip and import it. cb(err, count) on completion.
-function pickImageBackup(cb) {
+function pickBackup(cb) {
   const inp = el('input', { type: 'file', accept: '.zip,application/zip', hidden: '' });
   document.body.append(inp);
   inp.addEventListener('change', async () => {
     const f = inp.files && inp.files[0]; inp.remove();
     if (!f) return;
-    try { cb(null, await ImageBackup.importZip(f)); }
+    try { cb(null, await Backup.importZip(f)); }
     catch (e) { cb(e); }
   });
   inp.click();
@@ -2481,9 +2492,9 @@ function renderComments(root) {
 // "Clear backup"; otherwise it's "Import backup".
 function commentBackupBanner() {
   const wrap = el('div', { class: 'cmt-backup' });
-  const n = ImageBackup.countComments();
+  const n = Backup.countComments();
 
-  const readme = 'https://github.com/Remls/TVTimeArchive#backing-up-images';
+  const readme = 'https://github.com/Remls/TVTimeArchive#extended-backup';
   const status = el('div', { class: 'cmt-backup-status' }, [
     el('div', { class: 'cmt-backup-title' }, [el('i', { class: 'ph ph-images' }), el('strong', { text: 'Comment images' })]),
     n
@@ -2499,10 +2510,10 @@ function commentBackupBanner() {
   let btn;
   if (n) {
     btn = el('button', { class: 'btn secondary', html: '<i class="ph ph-trash"></i> Clear backup' });
-    btn.addEventListener('click', async () => { await ImageBackup.clear(); refresh(); });
+    btn.addEventListener('click', async () => { await Backup.clear(); refresh(); });
   } else {
     btn = el('button', { class: 'btn secondary', html: '<i class="ph ph-upload-simple"></i> Import backup' });
-    btn.addEventListener('click', () => pickImageBackup((err) => {
+    btn.addEventListener('click', () => pickBackup((err) => {
       if (err) { btn.innerHTML = '<i class="ph ph-warning"></i> ' + (err.message || 'Import failed'); return; }
       refresh();
     }));

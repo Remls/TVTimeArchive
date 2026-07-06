@@ -13,11 +13,11 @@ Not affiliated with TV Time / Whip Media.
 ## Disclaimer
 
 This is a **reader** for the data backup TV Time gives you — *not* a replacement for
-it. Some of it is best-effort guesswork (how reactions are encoded, how the data
-fits together across many tables), and some things simply can't be recovered from
-the export they provide — your friends list, for example. Images that live on TV
-Time's servers (comment memes, avatars, badge art) only survive a shutdown if you
-back them up first — see [Backing up images](#backing-up-images).
+it. Some of it is best-effort guesswork (how reactions are encoded, how the data fits
+together across many tables). And some things aren't in the export at all — they live
+on TV Time's servers behind images and ids (comment/badge/avatar images, the
+characters you voted for, your friends' names) — so they only survive a shutdown if
+you capture them first: see [Extended backup](#extended-backup).
 
 I have no intention of running a server to hold this data centrally or to fill in
 the gaps by crowdsourcing — managing other people's data is a can of worms I want no
@@ -73,39 +73,41 @@ visits; "Change source .zip file" in the ⚙ menu forgets it and clears local st
 
 Curated views support search, sort, filter, and CSV/JSON export.
 
-## Backing up images
+## Extended backup
 
-Some images come from TV Time's own CDN: your **comment images**, the **avatars** in
-your Notifications feed, and **badge artwork**. While TV Time is online they load
-straight from its servers — nothing extra needed. But when the servers go offline
-those links break.
+Some of your data lives behind TV Time's servers, not in the export: **images** on
+its CDN (comment images, notification avatars, badge art, friends' avatars) and
+**names** behind numeric ids (the **characters** you voted for, and your **friends'**
+real names). While TV Time is online the app fills these in live, but when the servers
+go offline they're gone — unless you capture them first.
 
-The browser can *display* those images but can't *read* their bytes to save them
-(the CDN sends no CORS headers), so the backup is made with a small script rather
-than a button in the app. It's plain Python 3 (no other dependencies) and runs the
-same on macOS, Linux, and Windows:
+`extended-backup.py` builds one portable zip with everything. It's plain Python 3 (no other
+dependencies), runs the same on macOS, Linux and Windows, and **needs no login** — the
+names come from TV Time's public API, the images from its CDN.
 
 1. Unzip your export somewhere (so `meme.csv` and friends sit in a folder).
-2. Run the script against it while TV Time is still up:
+2. Run it while TV Time is still up:
 
    ```bash
-   python3 backup-images.py path/to/your/export
-   # writes tvt-image-backup.zip
+   python3 extended-backup.py path/to/your/export
+   # writes tvt-extended-backup.zip
    ```
 
-   It downloads the images into folders — `comments/`, `avatars/`, `badges/` — and
-   packs them into `tvt-image-backup.zip`. Comment memes are saved in both a clean
-   and a watermarked "marked" variant; the app shows the clean one when it can and
-   falls back to the marked one. Re-running is safe and resumes where it left off.
-3. In the app, open **⚙ → Import image backup** (or the **Import backup** button at
+   It packs everything into one `tvt-extended-backup.zip`, in folders the app understands:
+   `comments/`, `avatars/`, `badges/`, `characters/`, `friends/`, plus
+   `characters.json` / `friends.json` for the resolved names. Comment memes are saved
+   in both a clean and a watermarked "marked" variant. Re-running is safe and resumes
+   over already-downloaded images (and keeps previously-resolved names if the API can
+   no longer be reached).
+3. In the app, open **⚙ → Import extended backup** (or the **Import backup** button at
    the top of the Comments view) and choose that zip.
 
-Imported images are stored in your browser and shown from the local copy, so they
-keep working after TV Time is gone. Missing images fall back to a placeholder.
+Imported data is stored in your browser and shown from the local copy, so it keeps
+working after TV Time is gone. Missing images fall back to a placeholder.
 
-Not all images need backing up — show posters and episode stills come from the
-keyless [TVmaze](https://www.tvmaze.com/api) API (see below), which is unaffected by
-TV Time shutting down.
+Character posters come from [TheTVDB](https://thetvdb.com) (which outlives TV Time),
+and show posters / episode stills come from the keyless
+[TVmaze](https://www.tvmaze.com/api) API (see below) — neither needs backing up.
 
 ## Optional metadata
 
@@ -119,11 +121,12 @@ only a show or movie name to the API when enabled:
 
 ## Notes on the data
 
-- **Ratings vs reactions.** TV Time's `ratings-*` / `emotions-*` vote files encode a
-  reaction id in the `vote_key` (`<entityId>-<userId>-<reactionId>`), not a star
-  score. The only genuine 1–5 star rating is `tv_show_rate.csv`, shown under
-  **Ratings**; the vote files drive **Reactions** (the 12 "how did you feel?"
-  feelings, ids 28–39, are decoded).
+- **Ratings vs reactions.** TV Time reused numeric ids across many versioned "sets"
+  over the years, and the export dropped the set name — so ids are decoded by *source*.
+  The `ratings-*` files (+ `tv_show_rate`) are the 5-level star scale (Bad/Meh/Okay/
+  Good/Wow) shown under **Ratings** across shows, movies and episodes; the `emotions-*`
+  files (+ the feelings hidden in `episode_emotion`) drive **Reactions** — the 12 "how
+  did you feel?" feelings plus older emoji-grid reactions.
 - **Comments.** Your comments are gathered from several tables (`episode_comment`,
   `show_comment`, `profile_comment`, and the newer `comments-prod-comments`), with
   images joined from `meme.csv`. Replies keep their parent's text only when the
@@ -132,9 +135,10 @@ only a show or movie name to the API when enabled:
   and earned badges (`user_badge`) each get a view; badge art and per-badge shows are
   reconstructed by joining ids across tables, and follow-request notifications even
   recover a few usernames.
-- **Friends** (`friend.csv`) are only opaque numeric ids — no usernames anywhere in
-  the export — so there's no friends view. Likes you *gave* also have no dedicated
-  view, but every table stays browsable under **All data**.
+- **Friends & characters.** `friend.csv` and `show_character_episode_vote.csv` hold
+  only numeric ids — no names in the export. Their real names/avatars/posters are
+  resolved from TV Time's public API by the extended-backup step above (before shutdown). Likes
+  you *gave* have no dedicated view, but every table stays browsable under **All data**.
 
 ## Run your own copy
 

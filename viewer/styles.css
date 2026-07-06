@@ -86,11 +86,11 @@ button { font-family: inherit; cursor: pointer; }
 .dz-sub { color: var(--text-dim); font-size: .92rem; margin-top: 4px; }
 
 .get-file { color: var(--text-dim); font-size: .84rem; margin-top: 20px; }
-.get-file a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.get-file a, .get-file a:visited { color: var(--accent); text-decoration: none; font-weight: 600; }
 .get-file a:hover { text-decoration: underline; }
 .privacy { color: var(--text-faint); font-size: .8rem; margin-top: 12px; }
 .repo-link { margin-top: 28px; }
-.repo-link a { color: var(--text-faint); font-size: .82rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.repo-link a, .repo-link a:visited { color: var(--text-faint); font-size: .82rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
 .repo-link a:hover { color: var(--text-dim); }
 .repo-link .ph { font-size: 1.05rem; }
 .error { color: var(--accent); font-size: .9rem; margin-top: 14px; }
@@ -177,6 +177,8 @@ button { font-family: inherit; cursor: pointer; }
 .menu-note { color: var(--text-faint); font-size: .72rem; line-height: 1.5; padding: 0 10px 8px; display: flex; align-items: flex-start; gap: 6px; }
 /* Match the icon's line-box to the text so it centres on the first line (Phosphor forces line-height:1). */
 .menu-note .ph { flex: 0 0 auto; line-height: inherit; }
+.menu-note a, .menu-note a:visited { color: var(--accent); text-decoration: none; font-weight: 600; }
+.menu-note a:hover { text-decoration: underline; }
 .menu-sep { height: 1px; background: var(--line); margin: 4px 6px; }
 .switch { width: 38px; height: 22px; border-radius: 999px; background: var(--line); position: relative; flex: 0 0 auto; transition: background .15s; }
 .switch.on { background: var(--accent); }
@@ -518,7 +520,7 @@ details.season[open] > summary::before { transform: rotate(90deg); }
 .cmt-backup-title { display: flex; align-items: center; gap: 8px; }
 .cmt-backup-title i { color: var(--accent); }
 .cmt-backup-status p { color: var(--text-dim); font-size: .84rem; margin-top: 3px; }
-.cmt-backup-status a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.cmt-backup-status a, .cmt-backup-status a:visited { color: var(--accent); text-decoration: none; font-weight: 600; }
 .cmt-backup-status a:hover { text-decoration: underline; }
 .cmt-backup-status p.muted.small { color: var(--text-faint); font-size: .78rem; }
 .cmt-backup-status code { background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
