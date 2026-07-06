@@ -150,7 +150,7 @@ export function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, i
       const dates = datesByEp[`${s}|${e}`] || [];
       const c = dates.length;
       const abs = full && Number(s) > 0 ? absOffset[s] + Number(e) : null;
-      const numTxt = `S${pad2(s)} · E${pad2(e)}` + (abs ? ` (E${pad2(abs)})` : '');
+      const numTxt = `S${pad2(s)}E${pad2(e)}` + (abs ? ` (E${pad2(abs)})` : '');
       const thumb = imgMap && imgMap[`${s}|${e}`];
       const thumbFull = imgFullMap && imgFullMap[`${s}|${e}`];
       det.append(el('div', { class: 'ep-row' }, [
@@ -159,8 +159,8 @@ export function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, i
           el('div', { class: 'ep-num', text: numTxt }),
           el('div', { class: 'ep-title' + (c ? '' : ' unseen'), text: seasons[s][e] || `Episode ${e}` }),
           c ? el('div', { class: 'ep-dates' }, dates.map((d, i) => el('span', { text: (i === 0 ? '▶ ' : '↻ ') + fmtDateTime(d) }))) : null,
-          (ratingByEp && ratingByEp[`${s}|${e}`]) ? el('div', { class: 'ep-rating', text: `${ratingByEp[`${s}|${e}`].label} · ${ratingByEp[`${s}|${e}`].stars}★` }) : null,
-          (reactsByEp && reactsByEp[`${s}|${e}`]) ? el('div', { class: 'ep-reactions', text: [...reactsByEp[`${s}|${e}`]].join(' · ') }) : null,
+          (ratingByEp && ratingByEp[`${s}|${e}`]) ? el('div', { class: 'ep-rating', text: `${ratingByEp[`${s}|${e}`].label} ${ratingByEp[`${s}|${e}`].stars}★` }) : null,
+          (reactsByEp && reactsByEp[`${s}|${e}`]) ? el('div', { class: 'ep-reactions', text: [...reactsByEp[`${s}|${e}`]].join(', ') }) : null,
         ]),
         c ? el('span', { class: 'count-badge' + (c === 1 ? ' once' : ''), text: `×${c}` }) : el('span', { class: 'unwatched-dot' }),
       ]));

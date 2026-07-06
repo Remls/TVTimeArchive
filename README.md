@@ -55,9 +55,9 @@ visits; "Change source .zip file" in the ⚙ menu forgets it and clears local st
 
 ## Views
 
-Three nav tabs are umbrellas that group related views — **Watch** (Shows · Movies ·
-Watch history · Lists), **Ratings** (Ratings · Reactions · Character votes), and
-**Community** (Comments · Notifications · Friends · Badges). On desktop their items nest
+Three nav tabs are umbrellas that group related views — **Watch** (Shows, Movies,
+Watch history, Lists), **Ratings** (Ratings, Reactions, Character votes), and
+**Community** (Comments, Notifications, Friends, Badges). On desktop their items nest
 in the sidebar; on mobile, tapping the tab opens a popup menu.
 
 | View | *(Group)* | What it shows |

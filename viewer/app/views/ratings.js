@@ -33,7 +33,7 @@ export function renderRatings(root) {
         el('div', { class: 'item-title', text: r.kind === 'movie' ? movieTitle(r.title) : r.title }),
         el('div', { class: 'item-meta' }, [
           el('span', { class: 'badge dim', text: KIND[r.kind] || r.kind }),
-          r.kind === 'episode' && (r.season || r.episode) ? el('span', { text: `S${r.season || '?'}·E${r.episode || '?'}` }) : null,
+          r.kind === 'episode' && (r.season || r.episode) ? el('span', { text: `S${r.season || '?'}E${r.episode || '?'}` }) : null,
           r.date ? el('span', { text: fmtDate(r.date) }) : null,
         ]),
       ];

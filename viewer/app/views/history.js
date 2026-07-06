@@ -9,8 +9,8 @@ export function historyItem(ev) {
   const info = ev.type === 'episode' ? Enrichment.epInfo(ev.title, ev.seriesId, ev.season, ev.episode) : null;
   const epName = info && info.name;
   const sub = ev.type === 'episode'
-    ? `S${ev.season || '?'}·E${ev.episode || '?'}${epName ? ' · ' + epName : ''}${ev.rewatch ? ' · rewatch' : ''}`
-    : `Movie${ev.rewatch ? ' · rewatch' : ''}`;
+    ? `S${ev.season || '?'}E${ev.episode || '?'}${epName ? ' ' + epName : ''}${ev.rewatch ? ' (rewatch)' : ''}`
+    : `Movie${ev.rewatch ? ' (rewatch)' : ''}`;
   const kids = [];
   // Thumbnail slot for both types when enrichment is on: episodes get the image,
   // movies get an empty placeholder so rows stay aligned.

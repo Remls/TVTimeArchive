@@ -8,7 +8,7 @@ export function renderHome(root) {
   const o = STATE.model.overview;
   const p = STATE.model.profile;
   const title = p.displayName ? `${p.displayName}’s archive` : 'Home';
-  const subtitle = `Tracked since ${fmtDate(o.firstWatch)} · last activity ${fmtDate(o.lastWatch)}`;
+  const subtitle = `Tracked since ${fmtDate(o.firstWatch)}, last activity ${fmtDate(o.lastWatch)}`;
   root.append(el('div', { class: 'view-head with-avatar' }, [
     avatarEl(p.avatar, p.displayName, p.userId && 'avatars/' + p.userId, 'lg'),
     el('div', {}, [el('h2', { text: title }), el('p', { text: subtitle })]),
@@ -23,7 +23,7 @@ export function renderHome(root) {
     ['showsFollowed', 'Shows followed', fmtInt(o.showsFollowed), '', `${fmtInt(o.showsTracked)} tracked total`],
     ['moviesTracked', 'Movies tracked', fmtInt(o.moviesTracked), '', null],
     ['reactionsLogged', 'Reactions logged', fmtInt(o.reactionsLogged), '', null],
-    ['ratingsLogged', 'Ratings given', fmtInt(o.ratingsLogged), '', 'shows · movies · episodes'],
+    ['ratingsLogged', 'Ratings given', fmtInt(o.ratingsLogged), '', 'shows, movies, episodes'],
   ];
   const grid = el('div', { class: 'stat-grid' });
   for (const [, label, value, cls, sub] of cards) {
@@ -60,7 +60,7 @@ export function renderHome(root) {
         const slug = knownShowSlug(m.show);
         mcards.append(posterCard({
           kind: 'show', title: m.show,
-          sub: `${fmtInt(m.episodes)} eps · ${fmtInt(m.days)} day${m.days === 1 ? '' : 's'}`,
+          sub: `${fmtInt(m.episodes)} episode${m.episodes === 1 ? '' : 's'} in ${fmtInt(m.days)} day${m.days === 1 ? '' : 's'}`,
           onClick: slug ? () => navigate({ view: 'shows', detail: slug }) : null,
         }));
       }

@@ -62,7 +62,7 @@ export const COMMENT_ICON = { episode: 'ph-television', show: 'ph-television', s
 export function renderComments(root) {
   const c = STATE.model.comments;
   const subtitle = c.imageCount
-    ? `${fmtInt(c.list.length)} comments · ${fmtInt(c.imageCount)} image${c.imageCount === 1 ? '' : 's'}`
+    ? `${fmtInt(c.list.length)} comments, ${fmtInt(c.imageCount)} image${c.imageCount === 1 ? '' : 's'}`
     : `${fmtInt(c.list.length)} comments`;
 
   listView(root, {
@@ -86,7 +86,7 @@ export function renderComments(root) {
     renderItem: (e) => {
       // Header: what it's on (+ S..E.. for episodes), clickable to the show when known.
       const label = e.kind === 'episode' && e.season
-        ? `${e.target} · S${pad2(e.season)}E${pad2(e.episode)}`
+        ? `${e.target} S${pad2(e.season)}E${pad2(e.episode)}`
         : (e.target || '—');
       const targetEl = el('span', { class: 'cmt-target' + (e.slug ? ' clickable' : '') }, [
         el('i', { class: 'ph ' + (COMMENT_ICON[e.kind] || 'ph-chat-circle-text') }), ' ' + label,

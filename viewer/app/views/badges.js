@@ -12,7 +12,7 @@ export function renderBadges(root) {
     return;
   }
   listView(root, {
-    title: 'Badges', subtitle: `${fmtInt(total)} earned · ${fmtInt(list.length)} types`,
+    title: 'Badges', subtitle: `${fmtInt(total)} earned, ${fmtInt(list.length)} types`,
     items: list, stateKey: 'badges', twoCol: true,
     searchText: (g) => g.name,
     sorts: [

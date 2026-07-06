@@ -301,7 +301,7 @@ def main(argv):
 
     named_c = sum(1 for c in characters.values() if c.get("name"))
     named_f = sum(1 for f in friends if f.get("name"))
-    print(f"images: {len(items)} referenced · {results['ok']} downloaded · {results['skip']} already had · {results['fail']} failed")
+    print(f"images: {len(items)} referenced, {results['ok']} downloaded, {results['skip']} already had, {results['fail']} failed")
     for folder in ("comments", "avatars", "badges", "characters", "friends"):
         d = os.path.join(WORK, folder)
         if os.path.isdir(d):

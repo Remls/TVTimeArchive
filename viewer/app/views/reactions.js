@@ -62,7 +62,7 @@ export function renderReactions(root) {
         el('div', { class: 'item-title', text: r.kind === 'movie' ? movieTitle(r.title) : r.title }),
         el('div', { class: 'item-meta' }, [
           el('span', { class: 'badge ' + (r.kind === 'movie' ? 'warn' : 'accent'), text: r.kind }),
-          r.kind === 'episode' && (r.season || r.episode) ? el('span', { text: `S${r.season || '?'}·E${r.episode || '?'}${epName ? ' · ' + epName : ''}` }) : null,
+          r.kind === 'episode' && (r.season || r.episode) ? el('span', { text: `S${r.season || '?'}E${r.episode || '?'}${epName ? ' ' + epName : ''}` }) : null,
           r.date ? el('span', { text: fmtDate(r.date) }) : null,
         ]),
         el('div', { class: 'reaction-chips' }, r.reactions.map(l => el('span', { class: 'badge accent', text: l }))),
