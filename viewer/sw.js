@@ -5,7 +5,7 @@ const SHELL = 'shell-' + VERSION;
 const RUNTIME = 'runtime-' + VERSION;
 
 const APP_SHELL = [
-  '/', '/index.html', '/app.js', '/styles.css',
+  '/', '/index.html', '/styles.css',
   '/favicon.svg', '/manifest.webmanifest',
   '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png',
 ];
