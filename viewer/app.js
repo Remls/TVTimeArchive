@@ -1655,10 +1655,14 @@ function buildSettingsMenu() {
   host.append(gear, pop);
 
   const onDoc = (e) => { if (!host.contains(e.target)) close(); };
-  function close() { pop.hidden = true; document.removeEventListener('click', onDoc); }
+  function close() { pop.hidden = true; document.removeEventListener('click', onDoc); if (activePopup === close) activePopup = null; }
   gear.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (pop.hidden) { pop.hidden = false; setTimeout(() => document.addEventListener('click', onDoc), 0); }
+    if (pop.hidden) {
+      if (activePopup) activePopup();
+      pop.hidden = false; activePopup = close;
+      setTimeout(() => document.addEventListener('click', onDoc), 0);
+    }
     else close();
   });
 }
@@ -1855,7 +1859,7 @@ function makeExportMenu(onExport) {
   const wrap = el('div', { class: 'export-menu' });
   const btn = el('button', { class: 'btn secondary', html: '<i class="ph ph-download-simple"></i> Export' });
   const onDoc = (e) => { if (!wrap.contains(e.target)) close(); };
-  function close() { pop.hidden = true; document.removeEventListener('click', onDoc); }
+  function close() { pop.hidden = true; document.removeEventListener('click', onDoc); if (activePopup === close) activePopup = null; }
   const pick = (fmt) => (e) => { e.stopPropagation(); close(); onExport(fmt); };
   const pop = el('div', { class: 'menu-pop export-pop', hidden: '' }, [
     el('button', { class: 'menu-item', text: 'CSV', onclick: pick('csv') }),
@@ -1863,11 +1867,57 @@ function makeExportMenu(onExport) {
   ]);
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (pop.hidden) { pop.hidden = false; setTimeout(() => document.addEventListener('click', onDoc), 0); } else close();
+    if (pop.hidden) {
+      if (activePopup) activePopup();
+      pop.hidden = false; activePopup = close;
+      setTimeout(() => document.addEventListener('click', onDoc), 0);
+    } else close();
   });
   wrap.append(btn, pop);
   return wrap;
 }
+
+/* Styled sort / filter dropdown: a button showing an icon + the current option +
+   caret, opening a menu-pop of choices. kind ('sort' | 'filter') picks the icon.
+   Replaces native <select> across the list views for a consistent, on-theme look. */
+function menuSelect({ value, options, onChange, kind }) {
+  const icon = kind === 'filter' ? 'ph-funnel' : 'ph-arrows-down-up';
+  const cur = () => options.find(o => o.id === value) || options[0];
+  const label = el('span', { class: 'ms-label', text: cur().label });
+  const btn = el('button', { class: 'ms-btn', title: kind === 'filter' ? 'Filter' : 'Sort' }, [
+    el('i', { class: 'ph ' + icon + ' ms-ico' }),
+    label,
+    el('i', { class: 'ph ph-caret-down ms-caret' }),
+  ]);
+  const pop = el('div', { class: 'menu-pop ms-pop', hidden: '' });
+  const wrap = el('div', { class: 'ms ms-' + kind }, [btn, pop]);
+  const onDoc = (e) => { if (!wrap.contains(e.target)) close(); };
+  function close() { pop.hidden = true; wrap.classList.remove('open'); document.removeEventListener('click', onDoc); if (activePopup === close) activePopup = null; }
+  function build() {
+    pop.innerHTML = '';
+    for (const o of options) {
+      const item = el('button', { class: 'menu-item' + (o.id === value ? ' active' : ''), text: o.label });
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        close();
+        if (o.id !== value) { value = o.id; label.textContent = o.label; onChange(o.id); }
+      });
+      pop.append(item);
+    }
+  }
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (pop.hidden) {
+      if (activePopup) activePopup();            // close any other open menu
+      build(); pop.hidden = false; wrap.classList.add('open'); activePopup = close;
+      setTimeout(() => document.addEventListener('click', onDoc), 0);
+    } else close();
+  });
+  return wrap;
+}
+// The close() of whichever popup menu (settings / export / sort / filter) is open, if any.
+// Opening one closes the other so only a single menu is ever visible at a time.
+let activePopup = null;
 
 /* ===================================================================
    Shared: filterable / sortable / paginated card list
@@ -1893,14 +1943,18 @@ function listView(root, cfg) {
   };
   const { search, controls } = buildToolbar(root, cfg.exportRow ? { onExport: doExport } : {});
   search.value = state.q;
-  const sortSel = el('select', { title: 'Sort' });
-  for (const s of cfg.sorts) sortSel.append(el('option', { value: s.id, text: s.label }));
-  sortSel.value = state.sort;
+  const sortSel = menuSelect({
+    value: state.sort, kind: 'sort',
+    options: cfg.sorts.map(s => ({ id: s.id, label: s.label })),
+    onChange: (id) => { state.sort = id; state.page = 0; draw(); },
+  });
   let filterSel = null;
   if (cfg.filter) {
-    filterSel = el('select', { title: 'Filter' });
-    for (const o of cfg.filter.options) filterSel.append(el('option', { value: o.id, text: o.label }));
-    filterSel.value = state.filterId;
+    filterSel = menuSelect({
+      value: state.filterId, kind: 'filter',
+      options: cfg.filter.options.map(o => ({ id: o.id, label: o.label })),
+      onChange: (id) => { state.filterId = id; state.page = 0; draw(); },
+    });
   }
   const countPill = el('span', { class: 'count-pill' });
   controls.append(...[sortSel, filterSel, countPill].filter(Boolean));
@@ -1961,8 +2015,6 @@ function listView(root, cfg) {
   }
 
   search.addEventListener('input', () => { state.q = search.value; state.page = 0; draw(); });
-  sortSel.addEventListener('change', () => { state.sort = sortSel.value; state.page = 0; draw(); });
-  if (filterSel) filterSel.addEventListener('change', () => { state.filterId = filterSel.value; state.page = 0; draw(); });
 
   draw();
 
@@ -2258,12 +2310,16 @@ function renderHistory(root) {
   };
   const { search, controls } = buildToolbar(root, { onExport: doExport });
   search.value = state.q;
-  const sortSel = el('select', { title: 'Sort' });
-  for (const [v, l] of [['recent', 'Newest first'], ['oldest', 'Oldest first']]) sortSel.append(el('option', { value: v, text: l }));
-  sortSel.value = state.sort;
-  const typeSel = el('select', { title: 'Filter' });
-  for (const [v, l] of [['all', 'All'], ['episode', 'Episodes'], ['movie', 'Movies'], ['rewatch', 'Rewatches only']]) typeSel.append(el('option', { value: v, text: l }));
-  typeSel.value = state.type;
+  const sortSel = menuSelect({
+    value: state.sort, kind: 'sort',
+    options: [{ id: 'recent', label: 'Newest first' }, { id: 'oldest', label: 'Oldest first' }],
+    onChange: (id) => { state.sort = id; state.page = 0; draw(); },
+  });
+  const typeSel = menuSelect({
+    value: state.type, kind: 'filter',
+    options: [{ id: 'all', label: 'All' }, { id: 'episode', label: 'Episodes' }, { id: 'movie', label: 'Movies' }, { id: 'rewatch', label: 'Rewatches only' }],
+    onChange: (id) => { state.type = id; state.page = 0; draw(); },
+  });
   const countPill = el('span', { class: 'count-pill' });
   controls.append(sortSel, typeSel, countPill);
 
@@ -2318,8 +2374,6 @@ function renderHistory(root) {
     persist();
   }
   search.addEventListener('input', () => { state.q = search.value; state.page = 0; draw(); });
-  sortSel.addEventListener('change', () => { state.sort = sortSel.value; state.page = 0; draw(); });
-  typeSel.addEventListener('change', () => { state.type = typeSel.value; state.page = 0; draw(); });
   draw();
 }
 

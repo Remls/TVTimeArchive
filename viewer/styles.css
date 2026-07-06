@@ -296,6 +296,22 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--surface); border: 1px solid var(--line);
   padding: 6px 10px; border-radius: 999px; white-space: nowrap;
 }
+/* Styled sort / filter dropdown (menuSelect) — replaces native <select> */
+.ms { position: relative; flex: 0 0 auto; max-width: 100%; }
+.ms-btn {
+  display: inline-flex; align-items: center; gap: 7px; max-width: 100%;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
+  border-radius: var(--radius-sm); padding: 9px 12px; font-size: .88rem; cursor: pointer;
+}
+.ms-btn:hover { border-color: var(--text-dim); }
+.ms.open .ms-btn { border-color: var(--accent); }
+.ms-ico { font-size: 1rem; color: var(--text-dim); flex: 0 0 auto; }
+.ms-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-caret { font-size: .8rem; color: var(--text-faint); flex: 0 0 auto; margin-left: 1px; transition: transform .15s; }
+.ms.open .ms-caret { transform: rotate(180deg); }
+.ms-pop { left: 0; right: auto; width: max-content; min-width: 100%; max-width: 260px; }
+.ms-pop .menu-item.active { color: var(--accent); font-weight: 600; }
+.ms-pop .menu-item.active::after { content: '\2713'; margin-left: auto; font-size: .85rem; }
 .btn {
   background: var(--accent); color: var(--accent-ink); border: none; font-weight: 650;
   border-radius: var(--radius-sm); padding: 9px 13px; font-size: .84rem;
