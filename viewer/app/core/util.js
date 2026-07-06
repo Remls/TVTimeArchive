@@ -77,4 +77,6 @@ export function toCSV(rows) {
    The current view is reflected in the URL hash (#/shows, #/shows/<slug>) so it's
    shareable and survives refresh, and the device Back button works in-app.
    A nav state is { view } for a tab, or { view:'shows', detail:<slug> } for a detail. */
-export const slugify = (t) => norm(t).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+// Keep letters/numbers from ANY script (not just a-z0-9), so non-Latin titles
+// (CJK, Arabic, Cyrillic, …) produce a real slug instead of collapsing to empty.
+export const slugify = (t) => norm(t).replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '');
