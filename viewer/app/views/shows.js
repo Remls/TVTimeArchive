@@ -1,6 +1,6 @@
 import { LEVEL_LABEL, reactionChipText } from '../core/decode.js';
 import { Enrichment } from '../core/enrich.js';
-import { zoomImg } from '../core/media.js';
+import { avatarEl, zoomImg } from '../core/media.js';
 import { STATE } from '../core/state.js';
 import { $, el, fmtDate, fmtDateTime, fmtInt, norm, slugify } from '../core/util.js';
 import { detailScaffold, emptyState, listView, posterCard, ratingChip, statusBadge } from '../ui/kit.js';
@@ -85,6 +85,16 @@ export function openShowDetail(show) {
   }
   for (const k in commentsByEp) commentsByEp[k].sort((a, b) => (a.date?.getTime() || 0) - (b.date?.getTime() || 0));
 
+  // Characters you voted for on this show, per episode (season|episode) and the show-level set.
+  const charsByEp = {};
+  const showChars = [];
+  for (const c of STATE.model.characters) {
+    const eps = new Set(c.votes.filter(v => norm(v.show) === showKey).map(v => `${v.season}|${v.episode}`));
+    if (!eps.size) continue;
+    showChars.push(c);
+    for (const epKey of eps) (charsByEp[epKey] ||= []).push(c);
+  }
+
   const key = Enrichment.keyFor(show.id, show.title);
 
   const load = () => {
@@ -110,7 +120,11 @@ export function openShowDetail(show) {
       note.append(el('button', { class: 'btn secondary', text: failed ? '↻ Retry' : 'Load episodes', onclick: refetch }));
     }
     body.append(note);
-    renderSeasons(body, datesByEp, epMap, v && v.i, reactsByEp, v && v.iO, ratingByEp, commentsByEp);
+    if (showChars.length) {
+      body.append(el('div', { class: 'section-title', text: 'Characters you voted for' }));
+      body.append(el('div', { class: 'char-strip' }, showChars.map(charVoteEl)));
+    }
+    renderSeasons(body, datesByEp, epMap, v && v.i, reactsByEp, v && v.iO, ratingByEp, commentsByEp, charsByEp);
   };
 
   const cached = Enrichment.getCached(key);
@@ -120,7 +134,16 @@ export function openShowDetail(show) {
   else render(null, false);
 }
 
-export function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, imgFullMap, ratingByEp, commentsByEp) {
+/* A character you voted for: circular thumbnail + name. Used in the show detail as a
+   per-show strip and under each episode you voted in. */
+function charVoteEl(c) {
+  return el('div', { class: 'char-vote' }, [
+    avatarEl(c.poster, c.name || `#${c.id}`, 'characters/' + c.id, 'md'),
+    el('span', { class: 'char-vote-name', text: c.name || `Character #${c.id}` }),
+  ]);
+}
+
+export function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, imgFullMap, ratingByEp, commentsByEp, charsByEp) {
   const full = !!epMap;
   const seasons = {}; // sNum -> { eNum -> title|null }
   const source = full ? Object.keys(epMap) : Object.keys(datesByEp);
@@ -159,6 +182,7 @@ export function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, i
           (ratingByEp && ratingByEp[`${s}|${e}`]) ? el('div', { class: 'ep-rating', text: `${ratingByEp[`${s}|${e}`].label} ${ratingByEp[`${s}|${e}`].stars}★` }) : null,
           (reactsByEp && reactsByEp[`${s}|${e}`]) ? el('div', { class: 'ep-reactions', text: [...reactsByEp[`${s}|${e}`]].join(', ') }) : null,
           ...((commentsByEp && commentsByEp[`${s}|${e}`]) || []).map(cm => commentCard(cm, { compact: true })),
+          (charsByEp && charsByEp[`${s}|${e}`]) ? el('div', { class: 'ep-chars' }, charsByEp[`${s}|${e}`].map(charVoteEl)) : null,
         ]),
         c ? el('span', { class: 'count-badge' + (c === 1 ? ' once' : ''), text: `×${c}` }) : el('span', { class: 'unwatched-dot' }),
       ]));

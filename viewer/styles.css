@@ -582,6 +582,14 @@ details.season[open] > summary::before { transform: rotate(90deg); }
 /* Inline comment under an episode in the show detail: lighter, tighter than the list card. */
 .ep-body .cmt { margin-top: 6px; padding: 8px 10px; gap: 5px; background: var(--surface-2); font-size: .85rem; }
 .ep-body .cmt-text { font-size: .85rem; }
+
+/* Characters you voted for: a per-show strip and per-episode thumbnails. */
+.char-strip { display: flex; flex-wrap: wrap; gap: 12px 16px; margin: 0 2px 16px; }
+.char-vote { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 60px; text-align: center; }
+.char-vote-name { font-size: .72rem; color: var(--text-dim); line-height: 1.2; overflow-wrap: anywhere; }
+.ep-chars { display: flex; flex-wrap: wrap; gap: 8px 12px; margin-top: 8px; }
+.ep-chars .char-vote { width: 50px; }
+.ep-chars .char-vote-name { font-size: .66rem; }
 .cmt-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .cmt-target { color: var(--text-dim); font-size: .82rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .cmt-target i { color: var(--text-faint); }
