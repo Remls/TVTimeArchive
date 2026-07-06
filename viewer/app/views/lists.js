@@ -12,7 +12,7 @@ export function renderLists(root) {
 
   const posterItems = [];
   for (const l of lists) {
-    const det = el('details', { class: 'list-card' });
+    const det = el('details', { class: 'list-card', open: '' });
     const cover = l.cover
       ? el('img', { class: 'list-cover', src: l.cover, loading: 'lazy', alt: '' })
       : el('div', { class: 'list-cover' });

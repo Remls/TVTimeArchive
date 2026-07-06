@@ -27,7 +27,7 @@ export function renderReactions(root) {
         const slug = knownShowSlug(title);
         cards.append(posterCard({
           kind: 'show', title, seriesId: Enrichment.seriesIdByName[norm(title)] || '',
-          sub: `${fmtInt(r.count)} feelings`,
+          sub: `${fmtInt(r.count)} reactions`,
           onClick: slug ? () => navigate({ view: 'shows', detail: slug }) : null,
         }));
       }

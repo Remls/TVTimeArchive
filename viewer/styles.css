@@ -392,16 +392,18 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .poster-card-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .poster-card-icon { font-size: 2.2rem; color: var(--text-faint); opacity: .5; }
 .poster-card.clickable:hover .poster-card-art { border-color: var(--accent); }
-.poster-card-tl { position: absolute; top: 6px; left: 6px; max-width: calc(100% - 12px); }
-.poster-card-tr { position: absolute; top: 6px; right: 6px; }
+.poster-card-tl, .poster-card-tr { position: absolute; top: 6px; display: flex; }
+.poster-card-tl { left: 6px; max-width: calc(100% - 12px); }
+.poster-card-tr { right: 6px; }
 .poster-card-tl .badge {
-  font-size: .66rem; padding: 2px 7px; box-shadow: 0 1px 4px rgba(0,0,0,.45);
+  font-size: .7rem; line-height: 1.4; padding: 2px 8px; border: 0;
+  background: rgba(0,0,0,.66); box-shadow: 0 1px 4px rgba(0,0,0,.45);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
 }
 .poster-badge {
   display: inline-flex; align-items: center; gap: 3px;
   background: rgba(0,0,0,.66); color: #fff; border-radius: 999px;
-  padding: 2px 7px; font-size: .72rem; font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,.45);
+  padding: 2px 8px; font-size: .7rem; line-height: 1.4; font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,.45);
 }
 .poster-badge .ph-fill { color: var(--accent); }
 .poster-card-info { padding: 8px 2px 0; }
@@ -434,7 +436,7 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .list-info { flex: 1; min-width: 0; }
 .list-name { font-weight: 650; overflow-wrap: anywhere; }
 .list-sub { color: var(--text-dim); font-size: .82rem; margin-top: 2px; }
-.list-items { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 14px 14px; }
+.list-card .poster-gallery { padding: 2px 14px 14px; }
 .chip { background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: .8rem; overflow-wrap: anywhere; }
 .chip.unknown { color: var(--text-faint); }
 .chip.clickable { cursor: pointer; }
