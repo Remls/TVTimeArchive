@@ -315,7 +315,11 @@ button { font-family: inherit; cursor: pointer; }
 .btn {
   background: var(--accent); color: var(--accent-ink); border: none; font-weight: 650;
   border-radius: var(--radius-sm); padding: 9px 13px; font-size: .84rem;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
 }
+/* Inline icons next to text (buttons, watch markers): flex-centred, spaced, a touch smaller.
+   line-height:1 makes the icon box hug the glyph so align-items:center truly centres it. */
+.btn .ph, .back-btn .ph, .pager button .ph, .detail-date .ph, .ep-dates span .ph { font-size: .9em; line-height: 1; }
 .btn.secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); font-weight: 500; }
 .btn:active { transform: translateY(1px); }
 
@@ -350,8 +354,12 @@ button { font-family: inherit; cursor: pointer; }
 .badge.dim  { color: var(--text-faint); }
 .badge.accent { color: var(--accent); border-color: rgba(var(--glow),.4); background: rgba(var(--glow),.08); }
 
-.rating-chip { font-weight: 700; color: var(--accent-2); font-size: 1rem; white-space: nowrap; }
-.rating-chip .star { font-size: .8em; }
+.rating-chip { white-space: nowrap; }
+/* Five-star rating bar (starRating): filled to the score, empty stars dimmed. */
+.stars { display: inline-flex; align-items: center; gap: 1px; line-height: 1; }
+.stars .ph { font-size: 1rem; }
+.stars .ph-fill { color: var(--accent-2); }
+.stars .ph:not(.ph-fill) { color: var(--text-faint); }
 
 /* ---------- Generic data table (raw browser + wide screens) ---------- */
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
@@ -370,7 +378,7 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* ---------- Pagination ---------- */
 .pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; color: var(--text-dim); font-size: .85rem; }
-.pager button { background: var(--surface-2); border: 1px solid var(--line); color: var(--text); border-radius: 999px; padding: 7px 14px; }
+.pager button { background: var(--surface-2); border: 1px solid var(--line); color: var(--text); border-radius: 999px; padding: 7px 14px; display: inline-flex; align-items: center; gap: 5px; }
 .pager button:disabled { opacity: .4; cursor: default; }
 
 .empty { text-align: center; color: var(--text-faint); padding: 40px 20px; }
@@ -409,7 +417,7 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .poster-card-info { padding: 8px 2px 0; }
 .poster-card-title {
   font-size: .84rem; font-weight: 600; line-height: 1.28;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .poster-card-secondary { font-size: .74rem; color: var(--text-dim); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .poster-card-sub { font-size: .74rem; color: var(--text-faint); margin-top: 2px; }
@@ -429,8 +437,8 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .list-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; margin-bottom: 10px; }
 .list-card > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
 .list-card > summary::-webkit-details-marker { display: none; }
-.list-card > summary::after { content: '▸'; color: var(--text-faint); font-size: .85rem; transition: transform .15s; margin-left: 2px; }
-.list-card[open] > summary::after { transform: rotate(90deg); }
+.list-card .list-caret { color: var(--text-faint); font-size: .95rem; transition: transform .15s; }
+.list-card[open] > summary .list-caret { transform: rotate(90deg); }
 .list-cover { width: 46px; height: 66px; border-radius: 8px; object-fit: cover; flex: 0 0 auto;
   background: linear-gradient(160deg, var(--surface-2), var(--surface)); border: 1px solid var(--line); }
 .list-info { flex: 1; min-width: 0; }
@@ -449,7 +457,7 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* ---------- Show detail (per-show watch progress) ---------- */
 .backbar { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
-.back-btn { background: var(--surface-2); border: 1px solid var(--line); color: var(--text); border-radius: 999px; padding: 8px 14px; font-size: .85rem; }
+.back-btn { background: var(--surface-2); border: 1px solid var(--line); color: var(--text); border-radius: 999px; padding: 8px 14px; font-size: .85rem; display: inline-flex; align-items: center; gap: 5px; }
 .back-btn:hover { border-color: var(--text-dim); }
 
 .detail-hero { display: flex; gap: 14px; align-items: flex-start; margin: 0 2px 16px; }
@@ -464,8 +472,8 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .detail-sub b { color: var(--text); }
 .detail-orig { color: var(--text-dim); font-size: .9rem; margin: 0 2px 10px; }
 .detail-dates { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 2px 6px; }
-.detail-date { color: var(--text-dim); font-size: .88rem; }
-.detail-date .ph { color: var(--text-faint); vertical-align: -.08em; }
+.detail-date { color: var(--text-dim); font-size: .88rem; display: inline-flex; align-items: center; gap: 5px; }
+.detail-date .ph { color: var(--text-faint); }
 .detail-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 2px 6px; }
 .cmt-list { display: flex; flex-direction: column; gap: 10px; }
 
@@ -478,8 +486,9 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 details.season { border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 10px; background: var(--surface); overflow: hidden; }
 details.season > summary { list-style: none; cursor: pointer; padding: 13px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-weight: 650; }
 details.season > summary::-webkit-details-marker { display: none; }
-details.season > summary::before { content: '▸'; color: var(--text-faint); font-size: .8rem; margin-right: 2px; transition: transform .15s; }
-details.season[open] > summary::before { transform: rotate(90deg); }
+.season-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.season-caret { color: var(--text-faint); font-size: .9rem; transition: transform .15s; flex: 0 0 auto; }
+details.season[open] > summary .season-caret { transform: rotate(90deg); }
 .season-title { flex: 1; }
 .season-prog { color: var(--text-dim); font-size: .8rem; font-weight: 500; }
 .season-prog.complete { color: var(--good); }
@@ -491,14 +500,15 @@ details.season[open] > summary::before { transform: rotate(90deg); }
 .ep-title { font-size: .9rem; min-width: 0; overflow-wrap: anywhere; }
 .ep-title.unseen { color: var(--text-faint); }
 .ep-dates { display: flex; flex-direction: column; gap: 1px; margin-top: 4px; }
-.ep-dates span { color: var(--text-faint); font-size: .72rem; font-variant-numeric: tabular-nums; }
+.ep-dates span { color: var(--text-faint); font-size: .72rem; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 5px; }
 .ep-reactions { font-size: .72rem; color: var(--accent-hi); margin-top: 3px; overflow-wrap: anywhere; }
 .ep-rating { font-size: .72rem; color: var(--accent-2); font-weight: 600; margin-top: 3px; }
 .reaction-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .char-shows { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-.count-badge { background: rgba(78,203,141,.14); color: var(--good); border: 1px solid rgba(78,203,141,.4); border-radius: 999px; padding: 3px 10px; font-size: .78rem; font-weight: 700; white-space: nowrap; }
-.count-badge.once { background: var(--surface-2); color: var(--text-dim); border-color: var(--line); }
-.unwatched-dot { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line); flex: 0 0 auto; }
+.count-badge { border: 1px solid transparent; border-radius: 999px; padding: 3px 10px; font-size: .78rem; font-weight: 700; white-space: nowrap; }
+.count-badge.none { background: var(--surface-2); color: var(--text-faint); border-color: var(--line); }        /* ×0, not watched */
+.count-badge.watched { background: rgba(78,203,141,.14); color: var(--good); border-color: rgba(78,203,141,.4); }   /* ×1, watched */
+.count-badge.rewatched { background: rgba(230,184,79,.16); color: #e6b84f; border-color: rgba(230,184,79,.45); } /* ×2+, rewatched (gold) */
 
 .item.clickable { cursor: pointer; transition: border-color .12s, transform .04s; }
 .item.clickable:hover { border-color: var(--text-dim); }

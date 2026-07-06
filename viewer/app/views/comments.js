@@ -150,12 +150,12 @@ export function commentBackupBanner() {
 
   let btn;
   if (n) {
-    btn = el('button', { class: 'btn secondary', html: '<i class="ph ph-trash"></i> Clear backup' });
+    btn = el('button', { class: 'btn secondary', html: '<i class="ph ph-trash"></i>Clear backup' });
     btn.addEventListener('click', async () => { await Backup.clear(); refresh(); });
   } else {
-    btn = el('button', { class: 'btn secondary', html: '<i class="ph ph-upload-simple"></i> Import backup' });
+    btn = el('button', { class: 'btn secondary', html: '<i class="ph ph-upload-simple"></i>Import backup' });
     btn.addEventListener('click', () => pickBackup((err) => {
-      if (err) { btn.innerHTML = '<i class="ph ph-warning"></i> ' + (err.message || 'Import failed'); return; }
+      if (err) { btn.innerHTML = '<i class="ph ph-warning"></i>' + (err.message || 'Import failed'); return; }
       refreshExtended(); refresh();
     }));
   }

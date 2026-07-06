@@ -20,7 +20,7 @@ export function renderCharacters(root) {
     sorts: [
       { id: 'recent', label: 'Recently voted', fn: (a, b) => (b.lastDate?.getTime() || 0) - (a.lastDate?.getTime() || 0) },
       { id: 'votes', label: 'Most voted', fn: (a, b) => b.votes.length - a.votes.length },
-      { id: 'az', label: 'A → Z', fn: (a, b) => (a.name || 'zzz~').localeCompare(b.name || 'zzz~') },
+      { id: 'az', label: 'Alphabetical', fn: (a, b) => (a.name || 'zzz~').localeCompare(b.name || 'zzz~') },
     ],
     renderItem: (c) => {
       const psrc = Backup.urlFor('characters/' + c.id) || c.poster || null;

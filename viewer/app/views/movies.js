@@ -23,7 +23,7 @@ export function renderMovies(root) {
       { id: 'recent', label: 'Recently watched', fn: (a, b) => (b.watchedAt?.getTime() || 0) - (a.watchedAt?.getTime() || 0) },
       { id: 'rating', label: 'Highest rated', fn: (a, b) => (b.rating?.stars || 0) - (a.rating?.stars || 0) },
       { id: 'runtime', label: 'Longest', fn: (a, b) => b.runtime - a.runtime },
-      { id: 'az', label: 'A → Z', fn: (a, b) => a.title.localeCompare(b.title) },
+      { id: 'az', label: 'Alphabetical', fn: (a, b) => a.title.localeCompare(b.title) },
     ],
     renderItem: (mv) => {
       const en = movieTitle(mv.title);
@@ -61,7 +61,7 @@ export function openMovieDetail(mv) {
   if (mv.watchDates.length) {
     section('Watch history');
     body.append(el('div', { class: 'detail-dates' }, mv.watchDates.map((d, i) =>
-      el('span', { class: 'detail-date', text: (i === 0 ? '▶ ' : '↻ ') + fmtDateTime(d) }))));
+      el('span', { class: 'detail-date', html: `<i class="ph ${i === 0 ? 'ph-play' : 'ph-arrow-clockwise'}"></i>${fmtDateTime(d)}` }))));
   }
 
   if (mv.reactions.length) {

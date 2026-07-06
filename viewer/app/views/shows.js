@@ -3,7 +3,7 @@ import { Enrichment } from '../core/enrich.js';
 import { avatarEl, zoomImg } from '../core/media.js';
 import { STATE } from '../core/state.js';
 import { $, el, fmtDate, fmtDateTime, fmtInt, norm, slugify } from '../core/util.js';
-import { detailScaffold, emptyState, listView, posterCard, ratingChip, statusBadge } from '../ui/kit.js';
+import { detailScaffold, emptyState, listView, posterCard, ratingChip, starRating, statusBadge } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 import { commentCard } from './comments.js';
 
@@ -25,7 +25,7 @@ export function renderShows(root) {
       { id: 'followed', label: 'Recently followed', fn: (a, b) => (b.followedAt?.getTime() || 0) - (a.followedAt?.getTime() || 0) },
       { id: 'rating', label: 'Highest rated', fn: (a, b) => (b.rating || 0) - (a.rating || 0) },
       { id: 'watched', label: 'Most episodes watched', fn: (a, b) => b.epWatched - a.epWatched },
-      { id: 'az', label: 'A → Z', fn: (a, b) => a.title.localeCompare(b.title) },
+      { id: 'az', label: 'Alphabetical', fn: (a, b) => a.title.localeCompare(b.title) },
     ],
     renderItem: (s) => posterCard({
       kind: 'show', title: s.title, seriesId: s.id,
@@ -114,10 +114,10 @@ export function openShowDetail(show) {
     const note = el('div', { class: 'enrich-note' });
     if (epMap) {
       note.append(el('span', { text: 'Episodes from TVmaze.' }));
-      note.append(el('button', { class: 'btn secondary', text: '↻ Refetch', onclick: refetch }));
+      note.append(el('button', { class: 'btn secondary', html: '<i class="ph ph-arrow-clockwise"></i>Refetch', onclick: refetch }));
     } else {
       note.append(el('span', { text: failed ? 'Not found on TVmaze.' : 'Showing your watched episodes.' }));
-      note.append(el('button', { class: 'btn secondary', text: failed ? '↻ Retry' : 'Load episodes', onclick: refetch }));
+      note.append(el('button', { class: 'btn secondary', html: failed ? '<i class="ph ph-arrow-clockwise"></i>Retry' : 'Load episodes', onclick: refetch }));
     }
     body.append(note);
     if (showChars.length) {
@@ -163,7 +163,10 @@ export function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, i
     const complete = total > 0 && watched === total;
     const det = el('details', { class: 'season' });   // collapsed by default
     det.append(el('summary', {}, [
-      el('span', { class: 'season-title', text: Number(s) === 0 ? 'Specials' : `Season ${s}` }),
+      el('span', { class: 'season-head' }, [
+        el('i', { class: 'ph ph-caret-right season-caret' }),
+        el('span', { class: 'season-title', text: Number(s) === 0 ? 'Specials' : `Season ${s}` }),
+      ]),
       el('span', { class: 'season-prog' + (complete ? ' complete' : ''), text: `${watched}/${total}` }),
     ]));
     for (const e of eNums) {
@@ -178,13 +181,13 @@ export function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, i
         el('div', { class: 'ep-body' }, [
           el('div', { class: 'ep-num', text: numTxt }),
           el('div', { class: 'ep-title' + (c ? '' : ' unseen'), text: seasons[s][e] || `Episode ${e}` }),
-          c ? el('div', { class: 'ep-dates' }, dates.map((d, i) => el('span', { text: (i === 0 ? '▶ ' : '↻ ') + fmtDateTime(d) }))) : null,
-          (ratingByEp && ratingByEp[`${s}|${e}`]) ? el('div', { class: 'ep-rating', text: `${ratingByEp[`${s}|${e}`].label} ${ratingByEp[`${s}|${e}`].stars}★` }) : null,
+          c ? el('div', { class: 'ep-dates' }, dates.map((d, i) => el('span', { html: `<i class="ph ${i === 0 ? 'ph-play' : 'ph-arrow-clockwise'}"></i>${fmtDateTime(d)}` }))) : null,
+          (ratingByEp && ratingByEp[`${s}|${e}`]) ? el('div', { class: 'ep-rating', title: `${ratingByEp[`${s}|${e}`].label} (${ratingByEp[`${s}|${e}`].stars}/5)` }, [starRating(ratingByEp[`${s}|${e}`].stars)]) : null,
           (reactsByEp && reactsByEp[`${s}|${e}`]) ? el('div', { class: 'ep-reactions', text: [...reactsByEp[`${s}|${e}`]].join(', ') }) : null,
           ...((commentsByEp && commentsByEp[`${s}|${e}`]) || []).map(cm => commentCard(cm, { compact: true })),
           (charsByEp && charsByEp[`${s}|${e}`]) ? el('div', { class: 'ep-chars' }, charsByEp[`${s}|${e}`].map(charVoteEl)) : null,
         ]),
-        c ? el('span', { class: 'count-badge' + (c === 1 ? ' once' : ''), text: `×${c}` }) : el('span', { class: 'unwatched-dot' }),
+        el('span', { class: 'count-badge ' + (c === 0 ? 'none' : c === 1 ? 'watched' : 'rewatched'), text: `×${c}` }),
       ]));
     }
     container.append(det);

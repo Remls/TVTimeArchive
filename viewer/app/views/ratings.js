@@ -25,7 +25,7 @@ export function renderRatings(root) {
       { id: 'recent', label: 'Recently rated', fn: (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0) },
       { id: 'oldest', label: 'Oldest rated', fn: (a, b) => (a.date?.getTime() || Infinity) - (b.date?.getTime() || Infinity) },
       { id: 'score', label: 'Highest rated', fn: (a, b) => b.stars - a.stars || a.title.localeCompare(b.title) },
-      { id: 'az', label: 'A → Z', fn: (a, b) => a.title.localeCompare(b.title) },
+      { id: 'az', label: 'Alphabetical', fn: (a, b) => a.title.localeCompare(b.title) },
       { id: 'kind', label: 'By type', fn: (a, b) => a.kind.localeCompare(b.kind) || b.stars - a.stars },
     ],
     renderItem: (r) => {

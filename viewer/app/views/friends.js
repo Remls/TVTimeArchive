@@ -16,7 +16,7 @@ export function renderFriends(root) {
     searchText: (f) => `${f.name || ''} ${f.username || ''}`,
     beforeList: unresolved ? (pre) => pre.append(extendedNote(unresolved, list.length)) : null,
     sorts: [
-      { id: 'az', label: 'A → Z', fn: (a, b) => (a.name || 'zzz~').localeCompare(b.name || 'zzz~') },
+      { id: 'az', label: 'Alphabetical', fn: (a, b) => (a.name || 'zzz~').localeCompare(b.name || 'zzz~') },
       { id: 'affinity', label: 'Closest (affinity)', fn: (a, b) => b.affinity - a.affinity },
       { id: 'recent', label: 'Recently added', fn: (a, b) => (b.since?.getTime() || 0) - (a.since?.getTime() || 0) },
     ],

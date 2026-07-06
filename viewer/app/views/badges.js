@@ -18,7 +18,7 @@ export function renderBadges(root) {
     sorts: [
       { id: 'count', label: 'Most earned', fn: (a, b) => b.count - a.count || (b.last?.getTime() || 0) - (a.last?.getTime() || 0) },
       { id: 'recent', label: 'Recently earned', fn: (a, b) => (b.last?.getTime() || 0) - (a.last?.getTime() || 0) },
-      { id: 'az', label: 'A → Z', fn: (a, b) => a.name.localeCompare(b.name) },
+      { id: 'az', label: 'Alphabetical', fn: (a, b) => a.name.localeCompare(b.name) },
     ],
     renderItem: (g) => {
       const art = g.art

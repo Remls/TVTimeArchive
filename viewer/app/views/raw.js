@@ -70,9 +70,9 @@ export function renderRaw(root) {
 
     pager.innerHTML = '';
     if (pages > 1) pager.append(
-      el('button', { text: '‹ Prev', disabled: state.page === 0 ? '' : false, onclick: () => { state.page--; draw(); } }),
+      el('button', { html: '<i class="ph ph-caret-left"></i>Prev', disabled: state.page === 0 ? '' : false, onclick: () => { state.page--; draw(); } }),
       el('span', { text: `Page ${state.page + 1} of ${pages}` }),
-      el('button', { text: 'Next ›', disabled: state.page >= pages - 1 ? '' : false, onclick: () => { state.page++; draw(); } }),
+      el('button', { html: 'Next<i class="ph ph-caret-right"></i>', disabled: state.page >= pages - 1 ? '' : false, onclick: () => { state.page++; draw(); } }),
     );
     persist();
   }

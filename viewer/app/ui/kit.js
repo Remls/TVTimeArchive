@@ -15,7 +15,7 @@ export function detailScaffold(root, { title, kind, subKids }) {
   root.innerHTML = '';
   window.scrollTo(0, 0);
   root.append(el('div', { class: 'backbar' }, [
-    el('button', { class: 'back-btn', text: '‹ Back', onclick: () => history.back() }),
+    el('button', { class: 'back-btn', html: '<i class="ph ph-caret-left"></i>Back', onclick: () => history.back() }),
   ]));
   const icon = () => el('i', { class: 'ph ' + (kind === 'movie' ? 'ph-film-slate' : 'ph-television') + ' detail-poster-icon' });
   const poster = el('div', { class: 'detail-poster' }, [icon()]);
@@ -96,7 +96,7 @@ export function posterCard(opts = {}) {
   }
   if (opts.status) art.append(el('div', { class: 'poster-card-tl' }, [statusBadge(opts.status)]));
   if (opts.rating) art.append(el('div', { class: 'poster-card-tr' }, [
-    el('span', { class: 'poster-badge', html: `<i class="ph-fill ph-star"></i> ${opts.rating}` })]));
+    el('span', { class: 'poster-badge', html: `<i class="ph-fill ph-star"></i>${opts.rating}` })]));
   const info = [el('div', { class: 'poster-card-title', text: opts.title })];
   if (opts.secondary) info.push(el('div', { class: 'poster-card-secondary', text: opts.secondary }));
   if (opts.sub) info.push(el('div', { class: 'poster-card-sub', text: opts.sub }));
@@ -159,7 +159,7 @@ export function buildToolbar(root, opts = {}) {
 /* Export dropdown: a button that opens a small CSV / JSON menu. */
 export function makeExportMenu(onExport) {
   const wrap = el('div', { class: 'export-menu' });
-  const btn = el('button', { class: 'btn secondary', html: '<i class="ph ph-download-simple"></i> Export' });
+  const btn = el('button', { class: 'btn secondary', html: '<i class="ph ph-download-simple"></i>Export' });
   const onDoc = (e) => { if (!wrap.contains(e.target)) close(); };
   function close() { pop.hidden = true; document.removeEventListener('click', onDoc); if (UI.activePopup === close) UI.activePopup = null; }
   const pick = (fmt) => (e) => { e.stopPropagation(); close(); onExport(fmt); };
@@ -292,8 +292,8 @@ export function listView(root, cfg) {
 
     pager.innerHTML = '';
     if (pages > 1) {
-      const prev = el('button', { text: '‹ Prev', disabled: state.page === 0 ? '' : false, onclick: () => { state.page--; draw(); window.scrollTo(0,0); } });
-      const next = el('button', { text: 'Next ›', disabled: state.page >= pages - 1 ? '' : false, onclick: () => { state.page++; draw(); window.scrollTo(0,0); } });
+      const prev = el('button', { html: '<i class="ph ph-caret-left"></i>Prev', disabled: state.page === 0 ? '' : false, onclick: () => { state.page--; draw(); window.scrollTo(0,0); } });
+      const next = el('button', { html: 'Next<i class="ph ph-caret-right"></i>', disabled: state.page >= pages - 1 ? '' : false, onclick: () => { state.page++; draw(); window.scrollTo(0,0); } });
       pager.append(prev, el('span', { text: `Page ${state.page + 1} of ${pages}` }), next);
     }
     persist();
@@ -328,10 +328,17 @@ export function statusBadge(status) {
   return el('span', { class: 'badge ' + cls, text: label });
 }
 
+// Five stars filled to the score (0-5), as Phosphor icons.
+export function starRating(n) {
+  n = Math.max(0, Math.min(5, Math.round(n || 0)));
+  const stars = [];
+  for (let i = 1; i <= 5; i++) stars.push(el('i', { class: (i <= n ? 'ph-fill' : 'ph') + ' ph-star' }));
+  return el('span', { class: 'stars' }, stars);
+}
+
 export function ratingChip(r) {
-  return el('div', { class: 'rating-chip', title: `${r.label} (${r.stars}/5)` }, [
-    el('span', { text: r.label }), el('span', { class: 'star', text: ` ${r.stars}★` }),
-  ]);
+  // Word label + /5 kept in the tooltip; the visible chip is just the 5-star bar.
+  return el('div', { class: 'rating-chip', title: `${r.label} (${r.stars}/5)` }, [starRating(r.stars)]);
 }
 
 /* Small inline chip/tag used in list items (list contents, character shows, badge shows).

@@ -26,17 +26,10 @@ export const EMOTION_LABELS = {
   25: ['🤩', 'Exciting'], 26: ['😑', 'Boring'], 27: ['😤', 'Frustrated'],
 };
 
-export const STARS = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
-
-// Is this reaction a star rating (vs an emotion)? Decided by its source file.
-export const isRatingSource = (source = '') => /^ratings/.test(source);
-
-export function reactionChipText(id, source = '') {
+// Reactions are always emotions (star ratings live in buildRatings), so this only
+// decodes the feeling: emoji + label.
+export function reactionChipText(id) {
   if (id == null) return null;
-  if (isRatingSource(source)) {
-    const r = RATING_LABELS[id];
-    return r ? `${STARS(r[0])} ${r[1]}` : `rating #${id}`;
-  }
   const e = EMOTION_LABELS[id];
   return e ? `${e[0]} ${e[1]}` : `reaction #${id}`;
 }

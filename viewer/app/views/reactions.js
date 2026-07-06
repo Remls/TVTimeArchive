@@ -48,7 +48,7 @@ export function renderReactions(root) {
       { id: 'recent', label: 'Recently watched', fn: (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0) },
       { id: 'oldest', label: 'Oldest first', fn: (a, b) => (a.date?.getTime() || Infinity) - (b.date?.getTime() || Infinity) },
       { id: 'most', label: 'Most feelings', fn: (a, b) => b.reactions.length - a.reactions.length },
-      { id: 'az', label: 'A → Z', fn: (a, b) => a.title.localeCompare(b.title) },
+      { id: 'az', label: 'Alphabetical', fn: (a, b) => a.title.localeCompare(b.title) },
     ],
     renderItem: (r) => {
       const info = r.kind === 'episode' ? Enrichment.epInfo(r.title, null, r.season, r.episode) : null;

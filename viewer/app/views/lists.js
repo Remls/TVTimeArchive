@@ -23,6 +23,7 @@ export function renderLists(root) {
         el('div', { class: 'list-sub', text: `${fmtInt(l.items.length)} ${kindLabel}` }),
       ]),
       el('span', { class: 'badge ' + (l.isPublic ? 'good' : 'dim'), text: l.isPublic ? 'Public' : 'Private' }),
+      el('i', { class: 'ph ph-caret-right list-caret' }),
     ]));
     const gallery = el('div', { class: 'poster-gallery' });
     for (const it of l.items) {
