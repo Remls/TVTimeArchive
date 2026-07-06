@@ -1,7 +1,8 @@
 import { avatarEl } from '../core/media.js';
 import { STATE } from '../core/state.js';
-import { $, el, fmtDate, fmtDuration, fmtInt } from '../core/util.js';
-import { barChart, emptyState, ensureShowPosters, showLineItem, showPosterItem } from '../ui/kit.js';
+import { el, fmtDate, fmtDuration, fmtInt, slugify } from '../core/util.js';
+import { barChart, emptyState, ensureShowPosters, knownShowSlug, posterCard, showPosterItem } from '../ui/kit.js';
+import { navigate } from '../ui/router.js';
 
 export function renderHome(root) {
   const o = STATE.model.overview;
@@ -37,12 +38,14 @@ export function renderHome(root) {
   // Top shows by episodes watched
   root.append(el('div', { class: 'section-title', text: 'Most-watched shows' }));
   const top = STATE.model.shows.filter(s => s.epWatched > 0).slice(0, 8);
-  const list = el('div', { class: 'cards two-col' });
+  const list = el('div', { class: 'poster-gallery' });
   for (const s of top) {
-    list.append(showLineItem(s.title, s.id, [
-      el('div', { class: 'item-title', text: s.title }),
-      el('div', { class: 'item-meta' }, [ el('span', { html: `<b>${fmtInt(s.epWatched)}</b> episodes` }), s.rating ? el('span', { html: `<i class="ph-fill ph-star" style="color:var(--accent)"></i> ${s.rating}` }) : null ]),
-    ]));
+    list.append(posterCard({
+      kind: 'show', title: s.title, seriesId: s.id,
+      status: s.status, rating: s.rating,
+      sub: `${fmtInt(s.epWatched)} episodes`,
+      onClick: () => navigate({ view: 'shows', detail: slugify(s.title) }),
+    }));
   }
   root.append(top.length ? list : emptyState('No watch data', { icon: 'ph-television' }));
   ensureShowPosters(top.map(s => showPosterItem(s.title, s.id)));
@@ -52,12 +55,14 @@ export function renderHome(root) {
   if (st && st.hasData) {
     if (st.marathons.length) {
       root.append(el('div', { class: 'section-title', text: 'Biggest marathons' }));
-      const mcards = el('div', { class: 'cards two-col' });
+      const mcards = el('div', { class: 'poster-gallery' });
       for (const m of st.marathons) {
-        mcards.append(showLineItem(m.show, null, [
-          el('div', { class: 'item-title', text: m.show }),
-          el('div', { class: 'item-meta' }, [el('span', { html: `<b>${fmtInt(m.episodes)}</b> episodes in <b>${fmtInt(m.days)}</b> day${m.days === 1 ? '' : 's'}` })]),
-        ]));
+        const slug = knownShowSlug(m.show);
+        mcards.append(posterCard({
+          kind: 'show', title: m.show,
+          sub: `${fmtInt(m.episodes)} eps · ${fmtInt(m.days)} day${m.days === 1 ? '' : 's'}`,
+          onClick: slug ? () => navigate({ view: 'shows', detail: slug }) : null,
+        }));
       }
       root.append(mcards);
       ensureShowPosters(st.marathons.map(m => showPosterItem(m.show)));

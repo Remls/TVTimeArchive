@@ -2,7 +2,7 @@ import { Enrichment, movieTitle } from '../core/enrich.js';
 import { zoomImg } from '../core/media.js';
 import { STATE } from '../core/state.js';
 import { $, el, fmtDate, fmtInt, norm } from '../core/util.js';
-import { ensureShowPosters, knownShowSlug, listView, showLineItem, showPosterItem } from '../ui/kit.js';
+import { ensureShowPosters, knownShowSlug, listView, posterCard, showPosterItem } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 
 export function renderReactions(root) {
@@ -21,12 +21,15 @@ export function renderReactions(root) {
     beforeList: (container) => {
       if (!perShow.length) return;
       container.append(el('div', { class: 'section-title', text: 'Shows you reacted to most' }));
-      const cards = el('div', { class: 'cards two-col' });
+      const cards = el('div', { class: 'poster-gallery' });
       for (const r of perShow.slice(0, 8)) {
         const title = titleByKey[r.key] || r.key;
-        cards.append(showLineItem(title, null,
-          [ el('div', { class: 'item-title', text: title }) ],
-          [ el('span', { class: 'badge accent', html: `<i class="ph ph-heart"></i> ${fmtInt(r.count)}` }) ]));
+        const slug = knownShowSlug(title);
+        cards.append(posterCard({
+          kind: 'show', title, seriesId: Enrichment.seriesIdByName[norm(title)] || '',
+          sub: `${fmtInt(r.count)} feelings`,
+          onClick: slug ? () => navigate({ view: 'shows', detail: slug }) : null,
+        }));
       }
       container.append(cards);
       container.append(el('div', { class: 'section-title', text: 'Every reaction' }));

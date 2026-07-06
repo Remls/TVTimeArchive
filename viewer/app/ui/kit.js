@@ -28,10 +28,37 @@ export function autoPoster(title, seriesId) {
 }
 
 export function fillPostersIn(rootEl) {
-  for (const box of rootEl.querySelectorAll('.item-poster[data-poster]')) {
+  // fills any tagged poster box (list-item posters AND gallery poster cards)
+  for (const box of rootEl.querySelectorAll('[data-poster]')) {
     const v = Enrichment.getCached(box.dataset.poster);
     if (v && v.img) { box.append(el('img', { src: v.img, loading: 'lazy', alt: '' })); box.removeAttribute('data-poster'); }
   }
+}
+
+/* Vertical poster tile for galleries (Home, Shows, Movies, Lists, Reactions).
+   opts: { title, secondary, sub, kind:'show'|'movie', seriesId, status, rating, onClick }
+   Show posters auto-resolve via Enrichment (cached now, else async-filled by ensureShowPosters);
+   movies (no poster source) and un-enriched shows fall back to a dim kind icon.
+   status -> top-left badge; rating (star count) -> top-right badge. */
+export function posterCard(opts = {}) {
+  const kind = opts.kind === 'movie' ? 'movie' : 'show';
+  const art = el('div', { class: 'poster-card-art' }, [
+    el('i', { class: 'ph ' + (kind === 'movie' ? 'ph-film-slate' : 'ph-television') + ' poster-card-icon' }),
+  ]);
+  if (kind === 'show' && Enrichment.enabled) {
+    const url = Enrichment.posterFor(opts.title, opts.seriesId);
+    if (url) art.append(el('img', { src: url, loading: 'lazy', alt: '' }));
+    else art.dataset.poster = Enrichment.resolveKey(opts.title, opts.seriesId);
+  }
+  if (opts.status) art.append(el('div', { class: 'poster-card-tl' }, [statusBadge(opts.status)]));
+  if (opts.rating) art.append(el('div', { class: 'poster-card-tr' }, [
+    el('span', { class: 'poster-badge', html: `<i class="ph-fill ph-star"></i> ${opts.rating}` })]));
+  const info = [el('div', { class: 'poster-card-title', text: opts.title })];
+  if (opts.secondary) info.push(el('div', { class: 'poster-card-secondary', text: opts.secondary }));
+  if (opts.sub) info.push(el('div', { class: 'poster-card-sub', text: opts.sub }));
+  const card = el('div', { class: 'poster-card' + (opts.onClick ? ' clickable' : '') }, [art, el('div', { class: 'poster-card-info' }, info)]);
+  if (opts.onClick) card.addEventListener('click', opts.onClick);
+  return card;
 }
 
 export function ensureShowPosters(items) {
@@ -180,7 +207,7 @@ export function listView(root, cfg) {
   const countPill = el('span', { class: 'count-pill' });
   controls.append(...[sortSel, filterSel, countPill].filter(Boolean));
 
-  const container = el('div', { class: 'cards' + (cfg.twoCol ? ' two-col' : '') });
+  const container = el('div', { class: cfg.gallery ? 'poster-gallery' : ('cards' + (cfg.twoCol ? ' two-col' : '')) });
   const pager = el('div', { class: 'pager' });
   root.append(container, pager);
 

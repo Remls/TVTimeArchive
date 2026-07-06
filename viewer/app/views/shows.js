@@ -3,14 +3,14 @@ import { Enrichment } from '../core/enrich.js';
 import { zoomImg } from '../core/media.js';
 import { STATE } from '../core/state.js';
 import { $, el, fmtDate, fmtDateTime, fmtInt, norm, slugify } from '../core/util.js';
-import { emptyState, listView, ratingChip, statusBadge } from '../ui/kit.js';
+import { emptyState, listView, posterCard, ratingChip, statusBadge } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 
 export function renderShows(root) {
   const shows = STATE.model.shows;
   listView(root, {
     title: 'TV Shows', subtitle: `${fmtInt(shows.length)} shows`,
-    items: shows, searchKeys: ['title'], twoCol: true, stateKey: 'shows',
+    items: shows, searchKeys: ['title'], gallery: true, stateKey: 'shows',
     enrichShows: (slice) => slice.map(s => ({ seriesId: s.id, title: s.title })),
     filter: { default: 'all', options: [
       { id: 'all', label: 'All statuses', test: () => true },
@@ -26,26 +26,12 @@ export function renderShows(root) {
       { id: 'watched', label: 'Most episodes watched', fn: (a, b) => b.epWatched - a.epWatched },
       { id: 'az', label: 'A → Z', fn: (a, b) => a.title.localeCompare(b.title) },
     ],
-    renderItem: (s) => {
-      const kids = [];
-      if (Enrichment.enabled) {
-        kids.push(zoomImg('item-poster', Enrichment.posterFor(s.title, s.id), s.title, Enrichment.posterFullFor(s.title, s.id)));
-      }
-      kids.push(el('div', { class: 'item-main' }, [
-        el('div', { class: 'item-title', text: s.title }),
-        el('div', { class: 'item-meta' }, [
-          el('span', { html: `<b>${fmtInt(s.epWatched)}</b> ep watched` }),
-          s.rewatches ? el('span', { html: `<b>${fmtInt(s.rewatches)}</b> rewatch` }) : null,
-          s.emotionCount ? el('span', { html: `<i class="ph ph-heart"></i> ${fmtInt(s.emotionCount)}` }) : null,
-          s.lastWatched ? el('span', { text: `last ${fmtDate(s.lastWatched)}` }) : null,
-        ]),
-      ]));
-      kids.push(el('div', { class: 'item-right' }, [
-        s.rating ? ratingChip({ stars: s.rating, label: LEVEL_LABEL[s.rating] || '' }) : null,
-        el('div', { html: '' }), statusBadge(s.status),
-      ]));
-      return el('div', { class: 'item clickable', title: 'View episode progress', onclick: () => navigate({ view: 'shows', detail: slugify(s.title) }) }, kids);
-    },
+    renderItem: (s) => posterCard({
+      kind: 'show', title: s.title, seriesId: s.id,
+      status: s.status, rating: s.rating,
+      sub: `${fmtInt(s.epWatched)} episodes`,
+      onClick: () => navigate({ view: 'shows', detail: slugify(s.title) }),
+    }),
     exportName: 'tvtime-shows',
     exportRow: (s) => ({ title: s.title, status: s.status || '', episodes_watched: s.epWatched, rewatches: s.rewatches, rating: s.rating ?? '', emotion_count: s.emotionCount, seen_episodes: s.seenCount, followed_at: s.followedAt ? s.followedAt.toISOString() : '', last_watched: s.lastWatched ? s.lastWatched.toISOString() : '', sources: (s.sources || []).join('|') }),
   });
