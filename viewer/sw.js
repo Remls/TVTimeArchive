@@ -1,4 +1,4 @@
-/* TV Time Archive Viewer, service worker.
+/* Service worker for both viewers (TV Time at /, Refract at /refract/).
    Bump VERSION on each deploy to invalidate old caches. */
 const VERSION = '__BUILD__';   // stamped with the git commit SHA by Netlify at deploy (see netlify.toml)
 const SHELL = 'shell-' + VERSION;
@@ -8,6 +8,8 @@ const APP_SHELL = [
   '/', '/index.html', '/styles.css',
   '/favicon.svg', '/manifest.webmanifest',
   '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png',
+  '/refract/', '/refract/index.html', '/refract/refract.css',
+  '/refract/favicon.svg', '/refract/manifest.webmanifest',
 ];
 
 // APIs whose responses we never cache (they have their own local caches / must stay fresh).
@@ -34,10 +36,12 @@ self.addEventListener('fetch', (e) => {
 
   if (url.origin === location.origin) {
     // App shell: network-first so deploys propagate, cache as offline fallback.
+    // Each app falls back to its own page, never the other's.
+    const fallback = url.pathname.startsWith('/refract') ? '/refract/index.html' : '/index.html';
     e.respondWith(
       fetch(req)
         .then((res) => { const copy = res.clone(); caches.open(RUNTIME).then((c) => c.put(req, copy)); return res; })
-        .catch(() => caches.match(req).then((hit) => hit || caches.match('/index.html')))
+        .catch(() => caches.match(req).then((hit) => hit || caches.match(fallback)))
     );
     return;
   }
