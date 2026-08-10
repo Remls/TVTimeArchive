@@ -2,6 +2,10 @@
 gdpr-data/
 gdpr-data.zip
 
+# Your Refract export
+refract-export-*/
+refract-export-*.zip
+
 # Files produced by extended-backup.py
 tvt-extended-backup/
 tvt-extended-backup.zip
