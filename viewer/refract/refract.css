@@ -1,0 +1,29 @@
+/* ===================================================================
+   Refract Archive Viewer theme: overrides the shared token block in
+   ../styles.css (loaded first). Cool near-black + indigo-violet accent,
+   the counterpart of the TV Time warm-black + coral theme.
+   =================================================================== */
+
+:root {
+  --bg:        #0e1016;   /* cool near-black */
+  --surface:   #151a23;   /* card surface (flat) */
+  --surface-2: #1b2130;   /* raised surface / pills / inputs */
+  --line:      #262e3d;   /* hairline borders */
+  --line-soft: #212837;   /* softer divider (topbar/nav edge lines) */
+  --text:      #e9edf5;   /* cool off-white */
+  --text-dim:  #9aa3b5;
+  --text-faint:#5d6579;
+  --accent:    #7c8cff;   /* indigo-violet, the ONE accent */
+  --accent-hi: #9aa8ff;   /* lighter accent tint for hovers/hero numeral */
+  --accent-ink:#0b0e2a;   /* dark text that sits on the accent */
+  --accent-2:  #9aa8ff;   /* accent tint */
+  --good:      #6fc7a8;
+  --glow:      124,140,255;  /* accent as r,g,b for rgba() glows */
+  --chrome-rgb:14,16,22;  /* topbar/tabbar backdrop as r,g,b */
+  --good-rgb:  111,199,168;
+  --broken-stroke:#5a5f8a;/* crack line in the broken-image placeholder */
+}
+
+/* badge.warn text is --accent-2 in the shared sheet (a warm tint there); on the
+   violet theme that clashes with the amber warn tint, so use gold instead */
+.badge.warn { color: var(--gold); }

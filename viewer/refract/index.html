@@ -3,39 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#15110e">
-<title>TV Time Archive Viewer</title>
-<meta name="description" content="Browse your TV Time data export locally in your browser.">
+<meta name="theme-color" content="#0e1016">
+<title>Refract Archive Viewer</title>
+<meta name="description" content="Browse your Refract data export locally in your browser.">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
 <!-- Installable PWA -->
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="TV Time Archive">
+<meta name="apple-mobile-web-app-title" content="Refract Archive">
 
 <!-- Social sharing (Open Graph + Twitter) -->
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="TV Time Archive Viewer">
-<meta property="og:url" content="https://tvt.remls.io/">
-<meta property="og:title" content="TV Time Archive Viewer">
-<meta property="og:description" content="Browse your TV Time data export locally in your browser.">
-<meta property="og:image" content="https://tvt.remls.io/og-image.png">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="TV Time Archive Viewer">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="TV Time Archive Viewer">
-<meta name="twitter:description" content="Browse your TV Time data export locally in your browser.">
-<meta name="twitter:image" content="https://tvt.remls.io/og-image.png">
+<meta property="og:site_name" content="Refract Archive Viewer">
+<meta property="og:url" content="https://tvt.remls.io/refract/">
+<meta property="og:title" content="Refract Archive Viewer">
+<meta property="og:description" content="Browse your Refract data export locally in your browser.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Refract Archive Viewer">
+<meta name="twitter:description" content="Browse your Refract data export locally in your browser.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet" href="refract.css">
 <!-- Client-side only: JSZip reads the export, PapaParse parses the CSVs. No server, no build step. -->
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
@@ -47,9 +43,9 @@
   <div class="landing-inner">
     <div class="brand">
       <img class="brand-mark" src="favicon.svg" alt="" width="30" height="30">
-      <h1>TV Time Archive</h1>
+      <h1>Refract Archive</h1>
     </div>
-    <p class="tagline">Browse your TV Time data export locally in your browser.</p>
+    <p class="tagline">Browse your Refract data export locally in your browser.</p>
 
     <!-- The "choose a file" UI is hidden until we've checked for a stored archive,
          so returning users don't see the dropzone flash before it auto-loads. -->
@@ -58,13 +54,14 @@
         <input type="file" id="fileInput" accept=".zip" hidden>
         <div class="dz-icon"><i class="ph ph-package"></i></div>
         <div class="dz-title">Drop your <code>.zip</code> here</div>
-        <div class="dz-sub">or tap to choose the TV&nbsp;Time data export</div>
+        <div class="dz-sub">or tap to choose the Refract data export</div>
       </label>
 
-      <p class="get-file">Don’t have your data yet? Request your export from
-        <a href="https://gdpr.tvtime.com/gdpr/self-service" target="_blank" rel="noopener noreferrer">TV&nbsp;Time’s GDPR self-service</a>.</p>
-      <p class="get-file">Moved to <a href="https://getrefract.app/" target="_blank" rel="noopener noreferrer">Refract</a>?
-        Its CSV exports have a viewer too: <a href="refract/">Refract Archive Viewer</a>.</p>
+      <p class="get-file">Don’t have your export yet? In the
+        <a href="https://getrefract.app/" target="_blank" rel="noopener noreferrer">Refract</a> app, go to
+        Settings&nbsp;&gt; Import&nbsp;&amp;&nbsp;Export&nbsp;&gt; Export&nbsp;as&nbsp;CSV.</p>
+      <p class="get-file">Have a TV&nbsp;Time GDPR export instead? Use the
+        <a href="../">TV&nbsp;Time Archive Viewer</a>.</p>
       <p class="privacy">Everything runs locally in your browser.</p>
     </div>
 
@@ -83,7 +80,7 @@
   <header class="topbar">
     <div class="topbar-left">
       <img class="brand-mark small" src="favicon.svg" alt="" width="22" height="22">
-      <strong id="appTitle">TV Time Archive</strong>
+      <strong id="appTitle">Refract Archive</strong>
     </div>
     <div class="topbar-right">
       <input id="globalSearch" class="global-search" type="search" placeholder="Search this view…" hidden>
@@ -102,7 +99,7 @@
 <script type="module" src="app/main.js"></script>
 <script>
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 </script>
 </body>
