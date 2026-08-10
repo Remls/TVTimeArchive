@@ -34,13 +34,65 @@ export function countryNames(codes) {
 export const humanizeTag = (t) => (t || '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
 export const tagChips = (tags, icon) => tags.map(t => chip(humanizeTag(t), { icon }));
 
-// Review text hidden behind a blur until tapped when the author marked it a spoiler.
+/* -------------------------------------------------------------------
+   Review text rendering. Refract reviews use a markdown subset (bold,
+   italic, strikethrough, ||inline spoilers||, links, quotes, lists,
+   @mentions). The CSV export flattens newlines to double spaces and
+   strips [media:…] tags, so lines are recovered by splitting on runs of
+   2+ spaces and media never appears.
+   ------------------------------------------------------------------- */
+const INLINE_RE = /\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\|\|(.+?)\|\||\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>]+)|(^|\s)@([\w.-]+)/;
+
+const link = (href, label) => el('a', { href, target: '_blank', rel: 'noopener noreferrer', text: label });
+
+const spoilerSpan = (content) => {
+  const s = el('span', { class: 'spoiler-inline', title: 'Spoiler. Click to reveal.' }, inline(content));
+  s.addEventListener('click', (e) => { e.stopPropagation(); s.classList.toggle('revealed'); });
+  return s;
+};
+
+function inline(text) {
+  const nodes = [];
+  let rest = text;
+  while (rest) {
+    const m = rest.match(INLINE_RE);
+    if (!m) { nodes.push(rest); break; }
+    if (m.index > 0) nodes.push(rest.slice(0, m.index));
+    if (m[1] != null) nodes.push(el('strong', {}, inline(m[1])));
+    else if (m[2] != null) nodes.push(el('em', {}, inline(m[2])));
+    else if (m[3] != null) nodes.push(el('s', {}, inline(m[3])));
+    else if (m[4] != null) nodes.push(spoilerSpan(m[4]));
+    else if (m[5] != null) nodes.push(link(m[6], m[5]));
+    else if (m[7] != null) nodes.push(link(m[7], m[7]));
+    else { if (m[8]) nodes.push(m[8]); nodes.push(el('span', { class: 'mention', text: '@' + m[9] })); }
+    rest = rest.slice(m.index + m[0].length);
+  }
+  return nodes;
+}
+
 export function reviewText(text, isSpoiler) {
   if (!text) return null;
-  const node = el('div', { class: 'review-text' + (isSpoiler ? ' spoiler' : ''), text });
-  if (isSpoiler) {
-    node.title = 'Marked as a spoiler. Click to reveal.';
-    node.addEventListener('click', () => { node.classList.toggle('revealed'); }, { once: false });
+  const root = el('div', { class: 'review-text' });
+  const lines = text.split(/ {2,}/).map(l => l.trim()).filter(Boolean);
+  let i = 0;
+  const run = (test, make, strip) => {
+    const box = make();
+    while (i < lines.length && test(lines[i])) { box.append(el(box.tagName === 'BLOCKQUOTE' ? 'p' : 'li', {}, inline(strip(lines[i])))); i++; }
+    root.append(box);
+  };
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line === '---') { root.append(el('div', { class: 'text-rule' })); i++; }
+    else if (line.startsWith('> ')) run(l => l.startsWith('> '), () => el('blockquote', { class: 'text-quote' }), l => l.slice(2));
+    else if (/^- /.test(line)) run(l => /^- /.test(l), () => el('ul'), l => l.slice(2));
+    else if (/^\d+\. /.test(line)) run(l => /^\d+\. /.test(l), () => el('ol'), l => l.replace(/^\d+\. /, ''));
+    else { root.append(el('p', {}, inline(line))); i++; }
   }
-  return node;
+  // whole-review spoiler flag with no inline markers: blur everything (legacy reviews)
+  if (isSpoiler && !text.includes('||')) {
+    root.classList.add('spoiler');
+    root.title = 'Marked as a spoiler. Click to reveal.';
+    root.addEventListener('click', (e) => { e.stopPropagation(); root.classList.toggle('revealed'); });
+  }
+  return root;
 }
