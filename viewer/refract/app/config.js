@@ -1,12 +1,6 @@
 import { makeArchiveStore } from '../../app/core/storage.js';
 import { renderRaw } from '../../app/views/raw.js';
-
-function buildRefractModel(tables) {
-  if (!tables['media.csv']) {
-    throw new Error('this doesn’t look like a Refract export (no media.csv). TV Time exports load at the site root instead.');
-  }
-  return {};
-}
+import { buildRefractModel } from './model.js';
 
 export const REFRACT_APP = {
   brand: { title: 'Refract Archive' },
