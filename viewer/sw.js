@@ -10,6 +10,7 @@ const APP_SHELL = [
   '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png',
   '/refract/', '/refract/index.html', '/refract/refract.css',
   '/refract/favicon.svg', '/refract/manifest.webmanifest',
+  '/refract/icon-192.png', '/refract/icon-512.png', '/refract/icon-maskable-512.png', '/refract/apple-touch-icon.png',
 ];
 
 // APIs whose responses we never cache (they have their own local caches / must stay fresh).
