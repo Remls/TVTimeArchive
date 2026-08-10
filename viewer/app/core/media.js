@@ -3,18 +3,24 @@ import { Backup } from './storage.js';
 import { $, el } from './util.js';
 
 // Inline "image unavailable" placeholder, shown when an image is neither backed
-// up locally nor reachable on the (possibly retired) server.
+// up locally nor reachable on the (possibly retired) server. Colors come from the
+// page's theme tokens (data URIs can't use CSS variables), with the TV Time
+// palette as the fallback; a stays-constant string so call sites can compare it.
+const _tok = (() => {
+  const css = getComputedStyle(document.documentElement);
+  return (name, fallback) => (css.getPropertyValue(name).trim() || fallback);
+})();
 export const BROKEN_IMG = 'data:image/svg+xml,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">' +
-  '<rect width="320" height="180" rx="10" fill="#241c15"/>' +
-  '<rect x="1" y="1" width="318" height="178" rx="9" fill="none" stroke="#2f261e"/>' +
-  '<g fill="none" stroke="#6f6456" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">' +
+  `<rect width="320" height="180" rx="10" fill="${_tok('--surface-2', '#241c15')}"/>` +
+  `<rect x="1" y="1" width="318" height="178" rx="9" fill="none" stroke="${_tok('--line', '#2f261e')}"/>` +
+  `<g fill="none" stroke="${_tok('--text-faint', '#6f6456')}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">` +
   '<rect x="120" y="62" width="80" height="60" rx="6"/>' +
   '<path d="M120 104 l20 -18 l16 14 l18 -20 l26 24"/>' +
   '<circle cx="146" cy="82" r="6"/>' +
-  '<path d="M112 54 l96 76" stroke="#8a5040"/>' +
+  `<path d="M112 54 l96 76" stroke="${_tok('--broken-stroke', '#8a5040')}"/>` +
   '</g>' +
-  '<text x="160" y="150" text-anchor="middle" font-family="Instrument Sans, Helvetica, Arial, sans-serif" font-size="14" fill="#a89e92">Image unavailable</text>' +
+  `<text x="160" y="150" text-anchor="middle" font-family="Instrument Sans, Helvetica, Arial, sans-serif" font-size="14" fill="${_tok('--text-dim', '#a89e92')}">Image unavailable</text>` +
   '</svg>'
 );
 

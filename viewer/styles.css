@@ -17,6 +17,16 @@
   --accent-2:  #ff8a5c;   /* accent tint (not gold) */
   --good:      #7fb894;   /* desaturated, semantic-only */
   --glow:      255,106,77;/* accent as r,g,b for rgba() glows */
+  --chrome-rgb:21,17,14;  /* topbar/tabbar backdrop as r,g,b (needs alpha for backdrop-filter) */
+  --good-rgb:  78,203,141;/* badge.good tint as r,g,b */
+  --warn-rgb:  255,180,84;/* badge.warn tint as r,g,b */
+  --gold:      #e6b84f;   /* rewatch count badges */
+  --gold-rgb:  230,184,79;
+  --shadow-rgb:0,0,0;     /* box/text shadows */
+  --scrim-rgb: 0,0,0;     /* dark overlays: lightbox backdrop, badges over posters */
+  --on-media-rgb:255,255,255; /* white UI sitting on images/scrims */
+  --knob:      #fff;      /* switch knob */
+  --broken-stroke:#8a5040;/* crack line in the broken-image placeholder (media.js) */
   --radius:    14px;
   --radius-sm: 9px;
   --tabbar-h:  60px;
@@ -114,7 +124,7 @@ button { font-family: inherit; cursor: pointer; }
   padding: 0 14px;
   padding-top: env(safe-area-inset-top);
   height: calc(var(--topbar-h) + env(safe-area-inset-top));
-  background: rgba(21,17,14,.85);
+  background: rgba(var(--chrome-rgb),.85);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
 }
@@ -129,7 +139,7 @@ button { font-family: inherit; cursor: pointer; }
   top: calc(var(--topbar-h) + env(safe-area-inset-top) + 10px);
   background: var(--surface-2); border: 1px solid var(--line); color: var(--text-dim);
   border-radius: 999px; padding: 6px 14px; font-size: .78rem; white-space: nowrap;
-  box-shadow: 0 8px 22px rgba(0,0,0,.4); display: flex; align-items: center; gap: 8px;
+  box-shadow: 0 8px 22px rgba(var(--shadow-rgb),.4); display: flex; align-items: center; gap: 8px;
 }
 .loadpill::before { content: ''; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; }
 
@@ -161,7 +171,7 @@ button { font-family: inherit; cursor: pointer; }
 .menu-pop {
   position: absolute; right: 0; top: calc(100% + 8px); width: 262px;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius);
-  box-shadow: 0 14px 34px rgba(0,0,0,.45); padding: 6px; z-index: 40;
+  box-shadow: 0 14px 34px rgba(var(--shadow-rgb),.45); padding: 6px; z-index: 40;
 }
 .menu-item {
   display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;
@@ -182,7 +192,7 @@ button { font-family: inherit; cursor: pointer; }
 .menu-sep { height: 1px; background: var(--line); margin: 4px 6px; }
 .switch { width: 38px; height: 22px; border-radius: 999px; background: var(--line); position: relative; flex: 0 0 auto; transition: background .15s; }
 .switch.on { background: var(--accent); }
-.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--knob); transition: transform .15s; }
 .switch.on::after { transform: translateX(16px); }
 
 /* ---------- View area ---------- */
@@ -213,7 +223,7 @@ button { font-family: inherit; cursor: pointer; }
 .subnav.floating {
   display: flex; flex-direction: column; position: fixed; z-index: 60; min-width: 180px;
   padding: 6px; background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: 12px; box-shadow: 0 14px 34px rgba(0,0,0,.5);
+  border-radius: 12px; box-shadow: 0 14px 34px rgba(var(--shadow-rgb),.5);
 }
 
 /* ---------- Avatars ---------- */
@@ -247,9 +257,9 @@ button { font-family: inherit; cursor: pointer; }
           mask-image: linear-gradient(to bottom, #000 0%, #000 30%, transparent 100%);
 }
 .profile-hero-body { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 14px; }
-.profile-hero .avatar { width: 112px; height: 112px; font-size: 2.4rem; border-color: rgba(255,255,255,.3); box-shadow: 0 10px 30px rgba(0,0,0,.6); }
-.profile-hero-name { font-weight: 800; font-size: 1.9rem; letter-spacing: -.02em; text-shadow: 0 3px 16px rgba(0,0,0,.75); }
-.profile-hero-sub { color: var(--text-dim); font-size: 1rem; text-shadow: 0 2px 12px rgba(0,0,0,.75); }
+.profile-hero .avatar { width: 112px; height: 112px; font-size: 2.4rem; border-color: rgba(var(--on-media-rgb),.3); box-shadow: 0 10px 30px rgba(var(--shadow-rgb),.6); }
+.profile-hero-name { font-weight: 800; font-size: 1.9rem; letter-spacing: -.02em; text-shadow: 0 3px 16px rgba(var(--shadow-rgb),.75); }
+.profile-hero-sub { color: var(--text-dim); font-size: 1rem; text-shadow: 0 2px 12px rgba(var(--shadow-rgb),.75); }
 
 /* ---------- Stat cards ---------- */
 .stat-grid {
@@ -334,7 +344,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .item-main { min-width: 0; flex: 1; }
 .item-thumb { width: 56px; height: 34px; border-radius: 6px; overflow: hidden; flex: 0 0 auto;
-  background: linear-gradient(160deg, #2a231d, #1d1712); border: 1px solid var(--line); }
+  background: linear-gradient(160deg, var(--line-soft), var(--surface)); border: 1px solid var(--line); }
 .item-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .item-poster { width: 42px; height: 62px; border-radius: 7px; overflow: hidden; flex: 0 0 auto;
   background: linear-gradient(160deg, var(--surface-2), var(--surface)); border: 1px solid var(--line); }
@@ -349,8 +359,8 @@ button { font-family: inherit; cursor: pointer; }
   padding: 3px 8px; border-radius: 999px; white-space: nowrap;
   background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--line);
 }
-.badge.good { color: var(--good); border-color: rgba(78,203,141,.4); background: rgba(78,203,141,.08); }
-.badge.warn { color: var(--accent-2); border-color: rgba(255,180,84,.4); background: rgba(255,180,84,.08); }
+.badge.good { color: var(--good); border-color: rgba(var(--good-rgb),.4); background: rgba(var(--good-rgb),.08); }
+.badge.warn { color: var(--accent-2); border-color: rgba(var(--warn-rgb),.4); background: rgba(var(--warn-rgb),.08); }
 .badge.dim  { color: var(--text-faint); }
 .badge.accent { color: var(--accent); border-color: rgba(var(--glow),.4); background: rgba(var(--glow),.08); }
 
@@ -405,13 +415,13 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .poster-card-tr { right: 6px; }
 .poster-card-tl .badge {
   font-size: .7rem; line-height: 1.4; padding: 2px 8px; border: 0;
-  background: rgba(0,0,0,.66); box-shadow: 0 1px 4px rgba(0,0,0,.45);
+  background: rgba(var(--scrim-rgb),.66); box-shadow: 0 1px 4px rgba(var(--shadow-rgb),.45);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
 }
 .poster-badge {
   display: inline-flex; align-items: center; gap: 3px;
-  background: rgba(0,0,0,.66); color: #fff; border-radius: 999px;
-  padding: 2px 8px; font-size: .7rem; line-height: 1.4; font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,.45);
+  background: rgba(var(--scrim-rgb),.66); color: rgb(var(--on-media-rgb)); border-radius: 999px;
+  padding: 2px 8px; font-size: .7rem; line-height: 1.4; font-weight: 700; box-shadow: 0 1px 4px rgba(var(--shadow-rgb),.45);
 }
 .poster-badge .ph-fill { color: var(--accent); }
 .poster-card-info { padding: 8px 2px 0; }
@@ -478,7 +488,7 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .cmt-list { display: flex; flex-direction: column; gap: 10px; }
 
 .ep-thumb { width: 54px; height: 32px; border-radius: 6px; overflow: hidden; flex: 0 0 auto;
-  background: linear-gradient(160deg, #2a231d, #1d1712); border: 1px solid var(--line); }
+  background: linear-gradient(160deg, var(--line-soft), var(--surface)); border: 1px solid var(--line); }
 .ep-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .enrich-note { color: var(--text-faint); font-size: .8rem; margin: 0 2px 14px; display: flex; align-items: center; gap: 10px; }
@@ -507,8 +517,8 @@ details.season[open] > summary .season-caret { transform: rotate(90deg); }
 .char-shows { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .count-badge { border: 1px solid transparent; border-radius: 999px; padding: 3px 10px; font-size: .78rem; font-weight: 700; white-space: nowrap; }
 .count-badge.none { background: var(--surface-2); color: var(--text-faint); border-color: var(--line); }        /* ×0, not watched */
-.count-badge.watched { background: rgba(78,203,141,.14); color: var(--good); border-color: rgba(78,203,141,.4); }   /* ×1, watched */
-.count-badge.rewatched { background: rgba(230,184,79,.16); color: #e6b84f; border-color: rgba(230,184,79,.45); } /* ×2+, rewatched (gold) */
+.count-badge.watched { background: rgba(var(--good-rgb),.14); color: var(--good); border-color: rgba(var(--good-rgb),.4); }   /* ×1, watched */
+.count-badge.rewatched { background: rgba(var(--gold-rgb),.16); color: var(--gold); border-color: rgba(var(--gold-rgb),.45); } /* ×2+, rewatched (gold) */
 
 .item.clickable { cursor: pointer; transition: border-color .12s, transform .04s; }
 .item.clickable:hover { border-color: var(--text-dim); }
@@ -520,7 +530,7 @@ details.season[open] > summary .season-caret { transform: rotate(90deg); }
   height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   display: flex; align-items: stretch;
-  background: rgba(24,18,13,.94);
+  background: rgba(var(--chrome-rgb),.94);
   backdrop-filter: blur(12px);
   border-top: 1px solid var(--line);
   overflow-x: auto;
@@ -637,14 +647,14 @@ details.season[open] > summary .season-caret { transform: rotate(90deg); }
 
 .lightbox {
   position: fixed; inset: 0; z-index: 200; display: grid; place-items: center;
-  background: rgba(0,0,0,.85); padding: 20px; cursor: zoom-out;
+  background: rgba(var(--scrim-rgb),.85); padding: 20px; cursor: zoom-out;
 }
 /* Size against the viewport directly, a % max-height won't constrain inside an
    auto-sized grid row, so full-res images would overflow. */
 .lightbox img {
   max-width: calc(100vw - 40px); max-height: calc(100dvh - 40px);
   width: auto; height: auto; object-fit: contain;
-  border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,.6);
+  border-radius: 8px; box-shadow: 0 12px 48px rgba(var(--shadow-rgb),.6);
 }
 
 /* ---------- Badges ---------- */
