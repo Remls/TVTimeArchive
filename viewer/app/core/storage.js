@@ -4,8 +4,8 @@ import { $ } from './util.js';
    Local persistence of the loaded archive via IndexedDB (never uploaded).
    Stores the original .zip blob so it can be re-parsed on the next visit.
    ------------------------------------------------------------------- */
-export const IDB = {
-  DB: 'tvt-archive', STORE: 'files', KEY: 'archive',
+export const makeArchiveStore = (dbName) => ({
+  DB: dbName, STORE: 'files', KEY: 'archive',
   _open() {
     return new Promise((res, rej) => {
       const req = indexedDB.open(this.DB, 1);
@@ -32,7 +32,9 @@ export const IDB = {
       await new Promise((res) => { const tx = db.transaction(this.STORE, 'readwrite'); tx.objectStore(this.STORE).delete(this.KEY); tx.oncomplete = res; tx.onerror = res; });
     } catch {}
   },
-};
+});
+
+export const IDB = makeArchiveStore('tvt-archive');
 
 /* -------------------------------------------------------------------
    Backup store, the imported "extended backup" (comment images, avatars, badge art,

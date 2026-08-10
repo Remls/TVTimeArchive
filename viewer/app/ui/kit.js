@@ -1,3 +1,4 @@
+import { APP } from '../core/app.js';
 import { Enrichment, MovieMeta } from '../core/enrich.js';
 import { zoomImg } from '../core/media.js';
 import { STATE, UI } from '../core/state.js';
@@ -323,8 +324,7 @@ export function listView(root, cfg) {
 }
 
 export function statusBadge(status) {
-  const map = { following: ['good', 'Following'], archived: ['dim', 'Archived'], stopped: ['warn', 'Stopped'], watchlist: ['accent', 'Watchlist'], watched: ['good', 'Watched'], rated: ['warn', 'Rated'] };
-  const [cls, label] = map[status] || ['dim', status || '-'];
+  const [cls, label] = APP.statuses[status] || ['dim', status || '-'];
   return el('span', { class: 'badge ' + cls, text: label });
 }
 

@@ -1,8 +1,7 @@
+import { APP } from '../core/app.js';
 import { Enrichment, MovieMeta } from '../core/enrich.js';
 import { STATE, UI } from '../core/state.js';
-import { Backup, Extended, IDB } from '../core/storage.js';
-import { $, norm } from '../core/util.js';
-import { buildModel } from '../model/model.js';
+import { $ } from '../core/util.js';
 import { applyState, hashToState, navigate } from './router.js';
 import { buildChrome, closeNavMenus } from './shell.js';
 
@@ -24,30 +23,25 @@ export async function loadArchive(file, opts = {}) {
   showLoading(`Parsing ${csvEntries.length} CSV files…`);
   const tables = {};
   for (const entry of csvEntries) {
-    const text = await entry.async('string');
+    const text = (await entry.async('string')).replace(/^\uFEFF/, '');   // strip a UTF-8 BOM (Refract CSVs carry one)
     const base = entry.name.split('/').pop();          // strip any folder prefix
     const parsed = Papa.parse(text, { header: true, skipEmptyLines: 'greedy', dynamicTyping: false });
     tables[base] = { fields: parsed.meta.fields || [], rows: parsed.data || [] };
   }
   STATE.tables = tables;
-  Extended.load();   // imported character/friend names, if any
+  if (APP.beforeModel) APP.beforeModel();
 
   try {
-    STATE.model = buildModel(tables);
+    STATE.model = APP.buildModel(tables);
   } catch (e) {
     console.error(e);
     return fail('Failed while interpreting the data: ' + e.message);
   }
 
-  // Index show titles -> TheTVDB id so name-only views (Reactions) can hit the enrichment cache.
-  Enrichment.seriesIdByName = {};
-  for (const s of STATE.model.shows) if (s.id) Enrichment.seriesIdByName[norm(s.title)] = s.id;
-
-  // Load any locally-backed-up comment images so they render from local copies.
-  await Backup.init();
+  if (APP.afterModel) await APP.afterModel(STATE.model);
 
   // Persist the raw archive locally (IndexedDB) so it reloads next visit. Never uploaded.
-  if (!opts.restoring) IDB.put(file, file.name || 'archive.zip');
+  if (!opts.restoring) APP.archive.put(file, file.name || 'archive.zip');
 
   $('#landing').hidden = true;
   $('#app').hidden = false;
@@ -97,9 +91,8 @@ export function initLanding() {
 
   // Boot: check IndexedDB first. If an archive is stored, auto-load it (staying in the
   // loading state); otherwise reveal the dropzone. This avoids flashing the landing.
-  IDB.get().then(rec => {
-    if (rec && rec.blob) loadArchive(rec.blob, { restoring: true }).then(ok => { if (!ok) IDB.clear(); });
+  APP.archive.get().then(rec => {
+    if (rec && rec.blob) loadArchive(rec.blob, { restoring: true }).then(ok => { if (!ok) APP.archive.clear(); });
     else showChooser();
   });
 }
-document.addEventListener('DOMContentLoaded', initLanding);
