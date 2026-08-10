@@ -41,7 +41,9 @@ export const Enrichment = {
   inflight: new Map(),   // key -> Promise
   POOL: 4,
 
-  keyFor(seriesId, title) { return seriesId ? 't' + seriesId : 'n:' + norm(title); },
+  // year disambiguates same-name shows from different eras when there is no
+  // TheTVDB id to go by; those entries get their own cache slot.
+  keyFor(seriesId, title, year) { return seriesId ? 't' + seriesId : 'n:' + norm(title) + (year ? '|' + year : ''); },
   lsKey(key) { return 'tvt.mz.' + key; },
 
   getCached(key) {
@@ -55,13 +57,13 @@ export const Enrichment = {
   },
 
   seriesIdByName: {},   // norm(title) -> TheTVDB id, so name-only views can resolve the cache
-  resolveKey(title, seriesId) {
+  resolveKey(title, seriesId, year) {
     const sid = seriesId || this.seriesIdByName[norm(title)] || '';
-    return this.keyFor(sid, title);
+    return this.keyFor(sid, title, sid ? null : year);
   },
-  epInfo(title, seriesId, season, episode) {
+  epInfo(title, seriesId, season, episode, year) {
     if (!this.enabled) return null;
-    const v = this.getCached(this.resolveKey(title, seriesId));
+    const v = this.getCached(this.resolveKey(title, seriesId, year));
     if (!v) return null;
     const k = `${season}|${episode}`;
     const image = (v.i && v.i[k]) || null;
@@ -69,14 +71,14 @@ export const Enrichment = {
   },
   titleFor(ev) { const i = this.epInfo(ev.title, ev.seriesId, ev.season, ev.episode); return i && i.name; },
   imageFor(ev) { const i = this.epInfo(ev.title, ev.seriesId, ev.season, ev.episode); return i && i.image; },
-  posterFor(title, seriesId) {
+  posterFor(title, seriesId, year) {
     if (!this.enabled) return null;
-    const v = this.getCached(this.resolveKey(title, seriesId));
+    const v = this.getCached(this.resolveKey(title, seriesId, year));
     return (v && v.img) || null;
   },
-  posterFullFor(title, seriesId) {
+  posterFullFor(title, seriesId, year) {
     if (!this.enabled) return null;
-    const v = this.getCached(this.resolveKey(title, seriesId));
+    const v = this.getCached(this.resolveKey(title, seriesId, year));
     return (v && (v.imgO || v.img)) || null;
   },
 
@@ -89,15 +91,69 @@ export const Enrichment = {
     return false;
   },
 
+  // The candidate from the fuzzy list whose premiere sits nearest `hint`,
+  // rejecting anything more than 2 years off.
+  async _searchByYear(q, hint) {
+    try {
+      const r = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(q)}`);
+      if (!r.ok) return null;
+      const near = (await r.json()).map(x => x.show)
+        .filter(s => s && s.premiered && Math.abs(parseInt(s.premiered) - hint) <= 2)
+        .sort((a, b) => Math.abs(parseInt(a.premiered) - hint) - Math.abs(parseInt(b.premiered) - hint));
+      return near[0] || null;
+    } catch { return null; }
+  },
+
+  // Alternate queries for titles TVmaze's fuzzy search chokes on: a colon
+  // directly followed by text, and localized subtitle decorations.
+  _fallbackQueries(title) {
+    const out = [];
+    const tightColon = title.replace(/:\s+/g, ':');
+    if (tightColon !== title) out.push(tightColon);
+    let cutAt = title.length;
+    for (const sep of [': ', ' - ', ' -', '~', ' [', ' (']) {
+      const i = title.indexOf(sep);
+      if (i > 0 && i < cutAt) cutAt = i;
+    }
+    const cut = title.slice(0, cutAt).trim();
+    if (cut && cut !== title && !out.includes(cut)) out.push(cut);
+    return out;
+  },
+
   // full=false -> resolve the show only (poster). full=true -> also fetch the episode list.
-  async fetchOne(seriesId, title, full) {
-    const key = this.keyFor(seriesId, title);
+  // year disambiguates and suffixes the cache key; hintYear only guides matching.
+  async fetchOne(seriesId, title, full, year, hintYear) {
+    const key = this.keyFor(seriesId, title, year);
+    const hint = year || hintYear;
     let show = null;
     if (seriesId) {
       try { const r = await fetch(`https://api.tvmaze.com/lookup/shows?thetvdb=${encodeURIComponent(seriesId)}`); if (r.ok) show = await r.json(); } catch {}
     }
+    if (!show && title && year) {
+      // Same-name shows from different eras: filter the fuzzy search to exact
+      // name matches, then take the nearest premiere year. Nearest, not equal:
+      // release years routinely differ by one from the premiere date.
+      try {
+        const r = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(title)}`);
+        if (r.ok) {
+          const named = (await r.json()).map(x => x.show).filter(s => s && norm(s.name) === norm(title) && s.premiered);
+          if (named.length) show = named.sort((a, b) => Math.abs(parseInt(a.premiered) - year) - Math.abs(parseInt(b.premiered) - year))[0];
+        }
+      } catch {}
+    }
     if (!show && title) {
       try { const r = await fetch(`https://api.tvmaze.com/singlesearch/shows?q=${encodeURIComponent(title)}`); if (r.ok) show = await r.json(); } catch {}
+      // A hit premiering far from the known release year is often a fuzzy grab
+      // of the wrong show; see if the candidate list has one that fits.
+      if (show && hint && show.premiered && Math.abs(parseInt(show.premiered) - hint) > 1) {
+        show = (await this._searchByYear(title, hint)) || show;
+      }
+    }
+    if (!show && title && hint) {
+      for (const q of this._fallbackQueries(title)) {
+        show = await this._searchByYear(q, hint);
+        if (show) break;
+      }
     }
     if (!show || !show.id) { this.store(key, { e: {}, f: true, full: true }); return; }
     // Keep both sizes: medium for thumbnails, original (full-res) for zoom.
@@ -117,12 +173,12 @@ export const Enrichment = {
 
   forget(key) { this.mem.delete(key); this.inflight.delete(key); try { localStorage.removeItem(this.lsKey(key)); } catch {} },
 
-  // Ensure a batch of {seriesId,title} is fetched at the requested level. Resolves to number newly fetched.
+  // Ensure a batch of {seriesId,title[,year][,hintYear]} is fetched at the requested level. Resolves to number newly fetched.
   async ensure(items, full = false) {
     const need = [];
     const seen = new Set();
     for (const it of items) {
-      const key = this.keyFor(it.seriesId, it.title);
+      const key = this.keyFor(it.seriesId, it.title, it.year);
       if (seen.has(key) || !this.needsFetch(key, full)) continue;
       seen.add(key); need.push(it);
     }
@@ -131,12 +187,12 @@ export const Enrichment = {
     const worker = async () => {
       while (i < need.length) {
         const it = need[i++];
-        const key = this.keyFor(it.seriesId, it.title);
+        const key = this.keyFor(it.seriesId, it.title, it.year);
         if (!this.needsFetch(key, full)) continue;
         let p = this.inflight.get(key);
         if (!p) {
           Progress.start();
-          p = this.fetchOne(it.seriesId, it.title, full).finally(() => { this.inflight.delete(key); Progress.finish(); });
+          p = this.fetchOne(it.seriesId, it.title, full, it.year, it.hintYear).finally(() => { this.inflight.delete(key); Progress.finish(); });
           this.inflight.set(key, p);
         }
         await p;

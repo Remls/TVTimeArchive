@@ -21,9 +21,37 @@
   --glow:      124,140,255;  /* accent as r,g,b for rgba() glows */
   --chrome-rgb:14,16,22;  /* topbar/tabbar backdrop as r,g,b */
   --good-rgb:  111,199,168;
+  --anime:     #ef9fbc;   /* anime identity tint (badges, fallback icons) */
+  --anime-rgb: 239,159,188;
   --broken-stroke:#5a5f8a;/* crack line in the broken-image placeholder */
+}
+
+/* Anime identity: pink badge + tinted lotus fallback icons */
+.badge.anime { color: var(--anime); border-color: rgba(var(--anime-rgb),.4); background: rgba(var(--anime-rgb),.08); }
+.poster-card-icon.ph-flower-lotus, .detail-poster-icon.ph-flower-lotus { color: var(--anime); opacity: .55; }
+
+/* Rows that put a rating chip next to a kind badge need air between them */
+.item-right { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+
+/* Ordered-list position, a tab resting on the poster's bottom border */
+.poster-num {
+  position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  background: var(--surface-2); border: 1px solid var(--line); border-bottom: none;
+  border-radius: 7px 7px 0 0; padding: 1px 9px;
+  font-size: .7rem; font-weight: 700; color: var(--text-dim); line-height: 1.5;
 }
 
 /* badge.warn text is --accent-2 in the shared sheet (a warm tint there); on the
    violet theme that clashes with the amber warn tint, so use gold instead */
 .badge.warn { color: var(--gold); }
+
+/* ---------- Reviews ---------- */
+.review-text { margin-top: 6px; color: var(--text-dim); font-size: .9rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.review-text.spoiler { filter: blur(5px); cursor: pointer; user-select: none; }
+.review-text.spoiler.revealed { filter: none; }
+.review-item { align-items: flex-start; }
+.review-item .detail-chips { margin-top: 8px; }
+.review-item .item-meta { align-items: center; }   /* text baseline centered against inline chips */
+
+/* ---------- Lists ---------- */
+.list-desc { color: var(--text-dim); font-size: .88rem; margin: 0 14px 12px; white-space: pre-wrap; }

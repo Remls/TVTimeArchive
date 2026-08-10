@@ -12,13 +12,13 @@ export function viewHead(root, title, subtitle) {
 /* Shared detail-page scaffold for shows and movies: a back bar, a hero (poster with a
    fallback kind icon + async setPoster, title, sub row), and an empty body to fill.
    Returns { body, setPoster } so each caller appends its own content. */
-export function detailScaffold(root, { title, kind, subKids }) {
+export function detailScaffold(root, { title, kind, subKids, kindIcon }) {
   root.innerHTML = '';
   window.scrollTo(0, 0);
   root.append(el('div', { class: 'backbar' }, [
     el('button', { class: 'back-btn', html: '<i class="ph ph-caret-left"></i>Back', onclick: () => history.back() }),
   ]));
-  const icon = () => el('i', { class: 'ph ' + (kind === 'movie' ? 'ph-film-slate' : 'ph-television') + ' detail-poster-icon' });
+  const icon = () => el('i', { class: 'ph ' + (kindIcon || (kind === 'movie' ? 'ph-film-slate' : 'ph-television')) + ' detail-poster-icon' });
   const poster = el('div', { class: 'detail-poster' }, [icon()]);
   root.append(el('div', { class: 'detail-hero' }, [
     poster,
@@ -64,11 +64,11 @@ export function entityNav(kind, title) {
 }
 
 // A poster box that fills now if cached, else is tagged to be filled once the fetch lands.
-export function autoPoster(title, seriesId) {
+export function autoPoster(title, seriesId, year) {
   const box = el('div', { class: 'item-poster' });
-  const url = Enrichment.posterFor(title, seriesId);
+  const url = Enrichment.posterFor(title, seriesId, year);
   if (url) box.append(el('img', { src: url, loading: 'lazy', alt: '' }));
-  else box.dataset.poster = Enrichment.resolveKey(title, seriesId);
+  else box.dataset.poster = Enrichment.resolveKey(title, seriesId, year);
   return box;
 }
 
@@ -81,23 +81,27 @@ export function fillPostersIn(rootEl) {
 }
 
 /* Vertical poster tile for galleries (Home, Shows, Movies, Lists, Reactions).
-   opts: { title, secondary, sub, kind:'show'|'movie', seriesId, status, rating, onClick }
+   opts: { title, secondary, sub, kind:'show'|'movie', kindIcon, seriesId, year, status, rating, onClick }
    Show posters auto-resolve via Enrichment (cached now, else async-filled by ensureShowPosters);
    movies (no poster source) and un-enriched shows fall back to a dim kind icon.
    status -> top-left badge; rating (star count) -> top-right badge. */
 export function posterCard(opts = {}) {
   const kind = opts.kind === 'movie' ? 'movie' : 'show';
   const art = el('div', { class: 'poster-card-art' }, [
-    el('i', { class: 'ph ' + (kind === 'movie' ? 'ph-film-slate' : 'ph-television') + ' poster-card-icon' }),
+    el('i', { class: 'ph ' + (opts.kindIcon || (kind === 'movie' ? 'ph-film-slate' : 'ph-television')) + ' poster-card-icon' }),
   ]);
   if (kind === 'show' && Enrichment.enabled) {
-    const url = Enrichment.posterFor(opts.title, opts.seriesId);
+    const url = Enrichment.posterFor(opts.title, opts.seriesId, opts.year);
     if (url) art.append(el('img', { src: url, loading: 'lazy', alt: '' }));
-    else art.dataset.poster = Enrichment.resolveKey(opts.title, opts.seriesId);
+    else art.dataset.poster = Enrichment.resolveKey(opts.title, opts.seriesId, opts.year);
   }
-  if (opts.status) art.append(el('div', { class: 'poster-card-tl' }, [statusBadge(opts.status)]));
-  if (opts.rating) art.append(el('div', { class: 'poster-card-tr' }, [
-    el('span', { class: 'poster-badge', html: `<i class="ph-fill ph-star"></i>${opts.rating}` })]));
+  if (opts.status || opts.rating) {
+    // one wrapping row so a long status label pushes the rating to its own line
+    art.append(el('div', { class: 'poster-card-top' }, [
+      opts.status ? statusBadge(opts.status) : el('span'),
+      opts.rating ? el('span', { class: 'poster-badge', html: `<i class="ph-fill ph-star"></i>${opts.rating}` }) : null,
+    ]));
+  }
   const info = [el('div', { class: 'poster-card-title', text: opts.title })];
   if (opts.secondary) info.push(el('div', { class: 'poster-card-secondary', text: opts.secondary }));
   if (opts.sub) info.push(el('div', { class: 'poster-card-sub', text: opts.sub }));

@@ -78,7 +78,7 @@ export function buildRefractModel(tables) {
   for (const s of shows) { s.episodes = new Map(); s.epWatched = 0; s.watches = 0; s.firstWatched = null; s.lastWatched = null; }
 
   /* ---- episodes.csv: attach each watch to a show ----
-     Duplicate titles are real (Doctor Who 2005/2024 …) and episode rows carry
+     A title can exist twice with different release years, and episode rows carry
      no year, so attribution is a heuristic per watch: a show released after the
      watch can't be it; 'planned' entries had no watches; otherwise the show
      whose activity (last watched date, else release year) sits closest to the
@@ -185,6 +185,30 @@ export function buildRefractModel(tables) {
   }
   reviews.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
 
+  /* ---- unified ratings: reviews.csv carries most, episodes.csv and media.csv
+     add ratings that never got a review row. Review entries win duplicates. ---- */
+  const ratings = [];
+  const rated = new Set();
+  const ratedKey = (target, kind, season, episode) => (target ? target.slug : '?') + SEP + kind + SEP + (season ?? '') + SEP + (episode ?? '');
+  for (const r of reviews) {
+    if (!r.rating) continue;
+    rated.add(ratedKey(r.target, r.kind, r.season, r.episode));
+    ratings.push({ title: r.title, target: r.target, kind: r.kind, season: r.season, episode: r.episode, rating: r.rating, date: r.date, source: 'review' });
+  }
+  for (const s of shows) {
+    for (const ep of s.episodes.values()) {
+      if (!ep.rating || rated.has(ratedKey(s, 'episode', ep.season, ep.episode))) continue;
+      const date = ep.dates.length ? ep.dates[ep.dates.length - 1] : null;
+      ratings.push({ title: s.title, target: s, kind: 'episode', season: ep.season, episode: ep.episode, rating: ep.rating, date, source: 'episode' });
+    }
+  }
+  for (const m of media) {
+    const kind = m.isMovie ? 'movie' : 'show';
+    if (!m.rating || rated.has(ratedKey(m, kind, null, null))) continue;
+    ratings.push({ title: m.title, target: m, kind, season: null, episode: null, rating: m.rating, date: m.watchedDate, source: 'library' });
+  }
+  ratings.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
+
   /* ---- lists.csv: one row per item, grouped by list name ---- */
   const listsByName = new Map();
   for (const r of rowsOf(tables, 'lists.csv')) {
@@ -223,10 +247,8 @@ export function buildRefractModel(tables) {
       moviesByYear.set(yk, (moviesByYear.get(yk) || 0) + 1);
     }
   }
-  for (const r of reviews) {
-    if (r.rating) ratingHist.set(r.rating, (ratingHist.get(r.rating) || 0) + 1);
-    for (const m of r.moodTags) moodCounts.set(m, (moodCounts.get(m) || 0) + 1);
-  }
+  for (const r of ratings) ratingHist.set(r.rating, (ratingHist.get(r.rating) || 0) + 1);
+  for (const r of reviews) for (const m of r.moodTags) moodCounts.set(m, (moodCounts.get(m) || 0) + 1);
   const stats = {
     tvShows: shows.filter(s => !s.isAnime).length,
     anime: shows.filter(s => s.isAnime).length,
@@ -235,12 +257,13 @@ export function buildRefractModel(tables) {
     moviesWatched: movies.filter(m => m.status === 'completed' || m.watchedDate).length,
     lists: lists.length,
     reviews: reviews.length,
+    ratings: ratings.length,
     epByMonth, moviesByYear, ratingHist,
     topMoods: [...moodCounts.entries()].sort((a, b) => b[1] - a[1]),
     firstWatch, lastWatch,
   };
 
-  return { media, shows, movies, history, lists, reviews, stats };
+  return { media, shows, movies, history, lists, reviews, ratings, stats };
 }
 
 // Detail-route lookup: disambiguated slug first, then the plain title slug
