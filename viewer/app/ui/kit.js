@@ -99,7 +99,10 @@ export function posterCard(opts = {}) {
     // one wrapping row so a long status label pushes the rating to its own line
     art.append(el('div', { class: 'poster-card-top' }, [
       opts.status ? statusBadge(opts.status) : el('span'),
-      opts.rating ? el('span', { class: 'poster-badge', html: `<i class="ph-fill ph-star"></i>${opts.rating}` }) : null,
+      opts.rating ? el('span', { class: 'star-num', title: `Rated ${opts.rating}` }, [
+        el('i', { class: 'ph-fill ph-star' }),
+        el('b', { text: opts.rating }),
+      ]) : null,
     ]));
   }
   const info = [el('div', { class: 'poster-card-title', text: opts.title })];

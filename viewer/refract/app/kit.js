@@ -15,10 +15,13 @@ export const enrichItem = (m) => ({ seriesId: '', title: m.title, year: metaYear
 export const kindIcon = (m) => (m && m.isAnime ? 'ph-flower-lotus' : null);
 
 // Refract rates on a 1-10 scale; a ten-star bar would drown the rows, so the
-// chip is one filled star plus the number.
+// rating renders as one star with the number inside.
 export function rating10(n) {
   if (!n) return null;
-  return el('span', { class: 'rating-chip', title: `Rated ${n}/10`, html: `<i class="ph-fill ph-star"></i> ${n}/10` });
+  return el('span', { class: 'star-num', title: `Rated ${n}/10` }, [
+    el('i', { class: 'ph-fill ph-star' }),
+    el('b', { text: n }),
+  ]);
 }
 
 // ISO 3166 codes (single or "; "-separated) to display names, best-effort.

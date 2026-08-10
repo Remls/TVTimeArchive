@@ -415,20 +415,23 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .poster-card-top {
   position: absolute; top: 6px; left: 6px; right: 6px;
   display: flex; justify-content: space-between; align-items: flex-start;
-  flex-wrap: wrap; gap: 4px; pointer-events: none;
+  gap: 4px; pointer-events: none;
 }
-.poster-card-top .poster-badge { margin-left: auto; }   /* stays right-aligned when wrapped to its own line */
+.poster-card-top .badge { min-width: 0; }   /* long status truncates; the star keeps the corner */
+.poster-card-top .star-num { flex: 0 0 auto; }
 .poster-card-top .badge {
   font-size: .7rem; line-height: 1.4; padding: 2px 8px; border: 0;
   background: rgba(var(--scrim-rgb),.66); box-shadow: 0 1px 4px rgba(var(--shadow-rgb),.45);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
 }
-.poster-badge {
-  display: inline-flex; align-items: center; gap: 3px;
-  background: rgba(var(--scrim-rgb),.66); color: rgb(var(--on-media-rgb)); border-radius: 999px;
-  padding: 2px 8px; font-size: .7rem; line-height: 1.4; font-weight: 700; box-shadow: 0 1px 4px rgba(var(--shadow-rgb),.45);
-}
-.poster-badge .ph-fill { color: var(--accent); }
+/* rating star with the number inside; --star sizes it, the digits scale along */
+.star-num { --star: 24px; display: grid; place-items: center; width: var(--star); height: var(--star); }
+.star-num > * { grid-area: 1 / 1; }
+.star-num .ph-fill { font-size: var(--star); line-height: 1; color: var(--accent); }
+/* span.star-num outranks contextual `x b` color rules (.detail-sub b, .item-meta b) */
+span.star-num b { font-size: calc(var(--star) * .3); font-weight: 800; letter-spacing: -.02em; color: var(--accent-ink); transform: translateY(10%); }
+/* on posters: no taller than the status chip beside it */
+.poster-card-top .star-num { --star: 20px; filter: drop-shadow(0 1px 3px rgba(var(--shadow-rgb),.55)); }
 .poster-card-info { padding: 8px 2px 0; }
 .poster-card-title {
   font-size: .84rem; font-weight: 600; line-height: 1.28;
