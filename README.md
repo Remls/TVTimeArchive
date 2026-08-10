@@ -27,7 +27,8 @@ entirely at my discretion. You're of course free to
 
 If you're looking for a replacement rather than an archive: I moved to
 [Trakt](https://trakt.tv) (note that it has no social features); other options include [Sofa Time](https://www.sofatime.app/)
-and [Refract](https://getrefract.app/).
+and [Refract](https://getrefract.app/), whose exports this app also reads (see
+[Refract exports](#refract-exports)).
 
 ## Get your export
 
@@ -52,6 +53,27 @@ python3 -m http.server 8777
 
 Drop the export `.zip` on the page (or tap to choose it). It's remembered between
 visits; "Change source .zip file" in the ⚙ menu forgets it and clears local storage.
+
+## Refract exports
+
+A second viewer at https://tvt.remls.io/refract/ (or `/refract/` on your own copy) reads
+[Refract](https://getrefract.app/) CSV exports. In the Refract app, go to
+Settings > Import & Export > Export as CSV and drop the resulting `.zip` on that page.
+
+Refract exports carry less data than TV Time's, so the view set is smaller: Home, TV Shows,
+Anime, Movies, Watch history, Lists, Ratings, Reactions (mood tags), Reviews, and All data.
+Reviews render Refract's markup (bold, italics, inline spoilers, quotes, lists, links).
+
+Notes on how the data is interpreted:
+
+- The export has no database ids, so everything joins by title. Show posters and episode
+  titles come from TVmaze by name search, guided by release year when a title exists twice
+  in your library or when a fuzzy match looks wrong.
+- Refract's database numbers some shows as one continuous season. When TVmaze splits the
+  same show into seasons, watched episodes are remapped onto that split (the detail page
+  says so when it happens).
+- Both viewers share the TVmaze and Wikidata metadata caches. Each keeps its own copy of
+  your export in browser storage; loading one never touches the other.
 
 ## Views
 
@@ -149,8 +171,8 @@ only a show or movie name to the API when enabled:
 ## Run your own copy
 
 Static site, no build step. `netlify.toml` publishes the `viewer/` folder as-is;
-any static host works. Keep your own export out of the published folder and out of
-git.
+any static host works. The Refract viewer ships from the same folder, at `viewer/refract/`.
+Keep your own exports out of the published folder and out of git.
 
 ## License
 
