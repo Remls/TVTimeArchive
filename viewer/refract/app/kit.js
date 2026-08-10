@@ -34,6 +34,16 @@ export function countryNames(codes) {
 export const humanizeTag = (t) => (t || '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
 export const tagChips = (tags, icon) => tags.map(t => chip(humanizeTag(t), { icon }));
 
+// Refract's own emoji for each mood tag; tags it doesn't know keep a sparkle icon.
+const MOOD_EMOJI = {
+  mind_bending: '🎭', mindbending: '🎭', plot_twist: '🤯', slow_burn: '🐌', stunning: '🎨',
+  hilarious: '😂', fun_ride: '🍿', terrifying: '😱', dark: '💀',
+  wholesome: '🥰', masterpiece: '🔥', heartbreaking: '💔', frustrating: '😤',
+  overhyped: '🏆', boring: '😴', underrated: '💎',
+};
+export const moodText = (t) => (MOOD_EMOJI[t] ? MOOD_EMOJI[t] + ' ' : '') + humanizeTag(t);
+export const moodChips = (tags) => tags.map(t => (MOOD_EMOJI[t] ? chip(moodText(t)) : chip(humanizeTag(t), { icon: 'ph-sparkle' })));
+
 /* -------------------------------------------------------------------
    Review text rendering. Refract reviews use a markdown subset (bold,
    italic, strikethrough, ||inline spoilers||, links, quotes, lists,

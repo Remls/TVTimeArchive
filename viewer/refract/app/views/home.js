@@ -2,7 +2,7 @@ import { STATE } from '../../../app/core/state.js';
 import { el, fmtDate, fmtInt } from '../../../app/core/util.js';
 import { barChart, chip, emptyState, ensureShowPosters, posterCard, viewHead } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
-import { enrichItem, humanizeTag, kindIcon, metaYear } from '../kit.js';
+import { enrichItem, kindIcon, metaYear, moodText } from '../kit.js';
 
 const MONTHS_SHOWN = 24;   // most-recent months in the episodes chart; older data stays in Watch history
 
@@ -72,6 +72,6 @@ export function renderHome(root) {
 
   if (st.topMoods.length) {
     root.append(el('div', { class: 'section-title', text: 'Most-used mood tags' }));
-    root.append(el('div', { class: 'detail-chips' }, st.topMoods.slice(0, 12).map(([tag, n]) => chip(`${humanizeTag(tag)} (${n})`, { icon: 'ph-sparkle' }))));
+    root.append(el('div', { class: 'detail-chips' }, st.topMoods.slice(0, 12).map(([tag, n]) => chip(`${moodText(tag)} (${n})`))));
   }
 }

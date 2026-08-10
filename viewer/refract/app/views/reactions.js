@@ -2,7 +2,7 @@ import { STATE } from '../../../app/core/state.js';
 import { el, fmtDate, fmtInt } from '../../../app/core/util.js';
 import { listView } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
-import { rating10, tagChips } from '../kit.js';
+import { moodChips, rating10, tagChips } from '../kit.js';
 import { targetNav } from './ratings.js';
 
 const pad2 = (n) => String(n).padStart(2, '0');
@@ -30,7 +30,7 @@ export function renderReactions(root) {
             r.date ? el('span', { text: fmtDate(r.date) }) : null,
           ]),
           el('div', { class: 'detail-chips' }, [
-            ...tagChips(r.moodTags, 'ph-sparkle'),
+            ...moodChips(r.moodTags),
             ...tagChips(r.watchContext, 'ph-users'),
           ]),
         ]),

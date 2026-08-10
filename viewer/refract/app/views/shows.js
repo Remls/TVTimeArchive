@@ -4,7 +4,7 @@ import { STATE } from '../../../app/core/state.js';
 import { $, el, fmtDate, fmtInt } from '../../../app/core/util.js';
 import { detailScaffold, emptyState, listView, posterCard, statusBadge } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
-import { countryNames, enrichItem, kindIcon, metaYear, rating10, reviewText, tagChips } from '../kit.js';
+import { countryNames, enrichItem, kindIcon, metaYear, moodChips, rating10, reviewText, tagChips } from '../kit.js';
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
@@ -213,7 +213,7 @@ export function reviewCard(r) {
       el('div', { class: 'item-meta' }, [
         r.kind === 'episode' && r.season != null ? el('span', { text: `S${pad2(r.season)}E${pad2(r.episode)}` }) : null,
         r.date ? el('span', { text: fmtDate(r.date) }) : null,
-        ...(r.moodTags.length ? tagChips(r.moodTags, 'ph-sparkle') : []),
+        ...(r.moodTags.length ? moodChips(r.moodTags) : []),
         ...(r.watchContext.length ? tagChips(r.watchContext, 'ph-users') : []),
       ]),
       reviewText(r.text, r.isSpoiler),

@@ -2,7 +2,7 @@ import { STATE } from '../../../app/core/state.js';
 import { el, fmtDate, fmtInt } from '../../../app/core/util.js';
 import { listView } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
-import { rating10, reviewText, tagChips } from '../kit.js';
+import { moodChips, rating10, reviewText, tagChips } from '../kit.js';
 import { targetNav } from './ratings.js';
 
 const pad2 = (n) => String(n).padStart(2, '0');
@@ -30,7 +30,7 @@ export function renderReviews(root) {
             r.kind === 'episode' && r.season != null ? el('span', { text: `S${pad2(r.season)}E${pad2(r.episode)}` }) : null,
             r.date ? el('span', { text: fmtDate(r.date) }) : null,
             r.visibility && r.visibility !== 'public' ? el('span', { text: r.visibility }) : null,
-            ...(r.moodTags.length ? tagChips(r.moodTags, 'ph-sparkle') : []),
+            ...(r.moodTags.length ? moodChips(r.moodTags) : []),
           ]),
           reviewText(r.text, r.isSpoiler),
         ]),
