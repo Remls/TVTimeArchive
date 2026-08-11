@@ -32,8 +32,8 @@ and [Refract](https://getrefract.app/), whose exports this app also reads (see
 
 ## Get your export
 
-Request your data from [TV Time's GDPR self-service](https://gdpr.tvtime.com/gdpr/self-service).
-You'll receive a `.zip` by email. That file is all this app needs.
+TV Time's GDPR self-service has shut down; new exports can no longer be requested.
+If you downloaded an export while it was up, that `.zip` is all this app needs.
 
 The export contains personal information (name, email, IP history, and more). Treat
 it as private, don't commit it to a public repository or host it anywhere.
