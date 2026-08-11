@@ -101,4 +101,5 @@ export const TVTIME_APP = {
     watchlist: ['accent', 'Watchlist'], watched: ['good', 'Watched'], rated: ['warn', 'Rated'],
   },
   settingsExtras,
+  crossLink: { label: 'Open Refract Archive', href: 'refract/' },
 };

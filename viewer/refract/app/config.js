@@ -51,4 +51,5 @@ export const REFRACT_APP = {
     dropped:     ['warn', 'Dropped'],
   },
   settingsExtras: null,
+  crossLink: { label: 'Open TV Time Archive', href: '../' },
 };

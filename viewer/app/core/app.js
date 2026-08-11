@@ -16,6 +16,7 @@ export const APP = {
   afterModel: null,   // async (model) -> void, after buildModel
   statuses: {},       // status -> [badgeClass, label] for kit.statusBadge
   settingsExtras: null, // ({ makeClear, refresh }) -> { items:[], clears:[] } | null
+  crossLink: null,    // { label, href } -> settings entry that opens the sibling viewer
 };
 
 export function configureApp(cfg) {

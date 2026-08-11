@@ -179,6 +179,7 @@ button { font-family: inherit; cursor: pointer; }
   padding: 10px; border-radius: var(--radius-sm); font-size: .9rem;
 }
 .menu-item:hover { background: var(--surface); }
+a.menu-item { text-decoration: none; }
 .menu-caret { color: var(--text-faint); font-size: .95rem; transition: transform .15s; }
 .menu-caret.open { transform: rotate(90deg); }
 .menu-sub { display: grid; gap: 2px; margin: 2px 0 2px 10px; padding-left: 6px; border-left: 1px solid var(--line); }

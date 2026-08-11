@@ -168,6 +168,13 @@ export function buildSettingsMenu() {
   const extraItems = (extras && extras.items) || [];
   if (extraItems.length) pop.append(sep(), ...extraItems);
   pop.append(sep(), clearWrap, sep(), changeItem);
+  if (APP.crossLink) {
+    // new tab so an installed PWA doesn't render the sibling app inside its own window
+    pop.append(sep(), el('a', { class: 'menu-item', href: APP.crossLink.href, target: '_blank' }, [
+      el('span', { text: APP.crossLink.label }),
+      el('i', { class: 'ph ph-arrow-square-out menu-caret' }),
+    ]));
+  }
   host.append(gear, pop);
 
   const onDoc = (e) => { if (!host.contains(e.target)) close(); };
