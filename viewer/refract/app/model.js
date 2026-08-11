@@ -15,9 +15,12 @@ const semiList = (v) => val(v) ? val(v).split(';').map(s => s.trim()).filter(Boo
 
 const kindOf = (type) => (type === 'Movie' ? 'movie' : 'tv');
 
+export const REFRACT_FILES = ['media.csv', 'episodes.csv', 'lists.csv', 'reviews.csv'];
+
 export function buildRefractModel(tables) {
-  if (!tables['media.csv']) {
-    throw new Error('this doesn’t look like a Refract export (no media.csv). TV Time exports load at the site root instead.');
+  // partial exports are valid: Refract lets you export any subset of its categories
+  if (!REFRACT_FILES.some(f => tables[f])) {
+    throw new Error('This doesn\'t look like a Refract export (none of its CSV files found). TV Time exports load at the site root instead.');
   }
 
   /* ---- media.csv: one entry per row, exact duplicates merged ---- */

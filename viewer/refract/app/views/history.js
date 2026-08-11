@@ -2,7 +2,7 @@ import { Enrichment, MovieMeta, movieTitle } from '../../../app/core/enrich.js';
 import { zoomImg } from '../../../app/core/media.js';
 import { STATE } from '../../../app/core/state.js';
 import { download, el, fmtDate, fmtInt, norm, toCSV } from '../../../app/core/util.js';
-import { buildToolbar, menuSelect, viewHead } from '../../../app/ui/kit.js';
+import { buildToolbar, emptyState, menuSelect, viewHead } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
 import { enrichItem, kindIcon, metaYear, rating10 } from '../kit.js';
 
@@ -88,6 +88,11 @@ export function renderHistory(root) {
     state.page = Math.min(state.page, pages - 1);
     const slice = items.slice(state.page * state.pageSize, (state.page + 1) * state.pageSize);
     container.innerHTML = '';
+    if (!items.length) {
+      container.append(events.length
+        ? emptyState('Nothing matches your search', { icon: 'ph-magnifying-glass' })
+        : emptyState('Nothing in this export', { icon: 'ph-tray' }));
+    }
     let lastDay = null, wrap = null;
     for (const ev of slice) {
       const day = ev.date ? ev.date.toDateString() : 'Unknown date';

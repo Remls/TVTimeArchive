@@ -295,7 +295,11 @@ export function listView(root, cfg) {
     const slice = items.slice(state.page * state.pageSize, (state.page + 1) * state.pageSize);
 
     container.innerHTML = '';
-    if (!slice.length) { container.append(emptyState('Nothing matches your search', { icon: 'ph-magnifying-glass' })); }
+    if (!slice.length) {
+      container.append(cfg.items.length
+        ? emptyState('Nothing matches your search', { icon: 'ph-magnifying-glass' })
+        : emptyState('Nothing in this export', { icon: 'ph-tray' }));
+    }
     for (const it of slice) container.append(cfg.renderItem(it));
 
     pager.innerHTML = '';

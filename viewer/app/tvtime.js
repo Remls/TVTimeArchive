@@ -47,11 +47,13 @@ const GROUPS = {
   community: { label: 'Community', icon: 'ph-users-three',  children: ['comments', 'notifications', 'friends', 'badges'] },
 };
 
-// A Refract export also parses as "a zip of CSVs"; catch it before the model
-// builder produces an empty archive and point at the right viewer instead.
+// A Refract export (even a partial one) also parses as "a zip of CSVs"; catch
+// it before the model builder produces an empty archive and point at the right
+// viewer instead.
 function buildTvTimeModel(tables) {
-  if (tables['media.csv'] && tables['episodes.csv'] && !tables['user.csv']) {
-    throw new Error('this looks like a Refract export. Load it at /refract instead.');
+  const refractish = ['media.csv', 'episodes.csv', 'lists.csv', 'reviews.csv'].some(f => tables[f]);
+  if (refractish && !tables['user.csv']) {
+    throw new Error('This looks like a Refract export. Load it at /refract instead.');
   }
   return buildModel(tables);
 }
