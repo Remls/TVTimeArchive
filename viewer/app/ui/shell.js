@@ -59,6 +59,42 @@ export function buildChrome() {
     }, [icon, el('span', { text: v.label })]));
   }
   buildSettingsMenu();
+  buildInfoButtons();
+}
+
+/* Topbar About button: a dropdown with the same copy as the landing footer,
+   instead of jumping straight to the external pages. */
+const extLink = (href, kids) => el('a', { href, target: '_blank', rel: 'noopener noreferrer' }, kids);
+
+function buildInfoButtons() {
+  const host = $('#aboutHost');
+  if (!host) return;
+  host.innerHTML = '';
+  const btn = el('button', { class: 'icon-btn', title: 'About this tool', 'aria-label': 'About this tool' }, [el('i', { class: 'ph ph-info' })]);
+  const pop = el('div', { class: 'menu-pop', hidden: '' }, [
+    el('div', { class: 'menu-info' }, [
+      'Created by ', extLink('https://remls.io', ['Remls']), '.', el('br'),
+      'This project is open source on ',
+      extLink('https://github.com/Remls/TVTimeArchive', [el('i', { class: 'ph ph-github-logo' }), ' GitHub']), '.',
+    ]),
+    el('div', { class: 'menu-sep' }),
+    el('div', { class: 'menu-info' }, [
+      'This tool is free to use, and will always remain that way.', el('br'),
+      'If you found it useful, consider supporting me on ',
+      extLink('https://ko-fi.com/remls', [el('i', { class: 'ph ph-coffee' }), ' Ko-fi']), '.',
+    ]),
+  ]);
+  const onDoc = (e) => { if (!host.contains(e.target)) close(); };
+  function close() { pop.hidden = true; document.removeEventListener('click', onDoc); if (UI.activePopup === close) UI.activePopup = null; }
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (pop.hidden) {
+      if (UI.activePopup) UI.activePopup();
+      pop.hidden = false; UI.activePopup = close;
+      setTimeout(() => document.addEventListener('click', onDoc), 0);
+    } else close();
+  });
+  host.append(btn, pop);
 }
 
 // Mobile nav popup: move the group's subnav to <body> (escaping the tabbar's
