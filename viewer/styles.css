@@ -477,6 +477,14 @@ span.star-num b { font-size: calc(var(--star) * .3); font-weight: 800; letter-sp
 .chip.clickable:hover { border-color: var(--accent); color: var(--text); }
 
 /* key-value profile grid */
+/* A section whose own heading folds its table away (the profile's notification
+   toggles). Open, it reads exactly like a plain section-title plus .kv. */
+details.kv-group > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 1.05rem; font-weight: 650; margin: 26px 2px 12px; }
+details.kv-group > summary::-webkit-details-marker { display: none; }
+.kv-caret { color: var(--text-faint); font-size: .95rem; transition: transform .15s; }
+details.kv-group[open] > summary .kv-caret { transform: rotate(90deg); }
+.kv-count { color: var(--text-dim); font-size: .82rem; font-weight: 500; }
+
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
 .kv dt { color: var(--text-dim); font-size: .84rem; }
 .kv dd { margin: 0; font-size: .9rem; overflow-wrap: anywhere; }

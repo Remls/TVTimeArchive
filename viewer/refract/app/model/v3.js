@@ -91,7 +91,7 @@ function entryOf(item) {
   };
 }
 
-export function buildV3Model(tables) {
+export function buildV3Model(tables, manifest) {
   /* ---- library.jsonl: one entry per row, keyed by mediaItemId ---- */
   const media = [];
   const byId = new Map();
@@ -372,8 +372,30 @@ export function buildV3Model(tables) {
   favorites.sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
     || (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
 
+  /* ---- profile.jsonl: one row of account settings. Most of it is kept
+     verbatim for the view to label; only the parts needing other sections are
+     resolved here. avatarUrl is a path on Refract's own server rather than a
+     URL, so there is nothing to load and the view falls back to an initial. ---- */
+  const raw = rawOf(tables, 'profile')[0] || null;
+  const goal = rawOf(tables, 'yearly_goals')[0] || null;
+  const profile = raw && {
+    ...raw,
+    displayName: raw.displayName || raw.username || '',
+    name: [raw.firstName, raw.lastName].filter(Boolean).join(' '),
+    avatar: /^https?:\/\//.test(raw.avatarUrl || '') ? raw.avatarUrl : '',
+    banner: /^https?:\/\//.test(raw.bannerUrl || '') ? raw.bannerUrl : '',
+    featuredList: (listById.get(raw.featuredListId) || {}).name || '',
+    yearlyGoal: goal && { ...goal, completedAt: parseDate(goal.completedAt) },
+    backup: manifest ? {
+      generatedAt: parseDate(manifest.generatedAt),
+      formatVersion: manifest.formatVersion || '',
+      includeArchived: !!(manifest.options || {}).includeArchived,
+      sections: Object.keys(manifest.sections || {}).length,
+    } : null,
+  };
+
   /* ---- stats for the home view ---- */
   const stats = buildStats({ shows, movies, history, lists, reviews, ratings, reactions });
 
-  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary, favorites, stats };
+  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary, favorites, profile, stats };
 }

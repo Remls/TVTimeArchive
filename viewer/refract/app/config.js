@@ -12,6 +12,7 @@ import { renderReviews } from './views/reviews.js';
 import { openShowDetail, renderAnime, renderShows } from './views/shows.js';
 import { renderDiary } from './views/diary.js';
 import { renderFavorites } from './views/favorites.js';
+import { renderProfile } from './views/profile.js';
 
 // Shows and Anime are separate nav views over the same entity pool, so both
 // route to the same detail opener.
@@ -38,6 +39,7 @@ export const REFRACT_APP = {
     { id: 'ratings', label: 'Ratings', icon: 'ph-star', render: renderRatings },
     { id: 'reactions', label: 'Reactions', icon: 'ph-heart', render: renderReactions },
     { id: 'reviews', label: 'Reviews', icon: 'ph-note-pencil', render: renderReviews },
+    { id: 'profile', label: 'Profile', icon: 'ph-user', render: renderProfile, available: (m) => !!m.profile },
     { id: 'raw',    label: 'All data', icon: 'ph-database', render: renderRaw },
   ],
   groups: {

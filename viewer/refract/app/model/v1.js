@@ -224,6 +224,6 @@ export function buildV1Model(tables) {
   /* ---- stats for the home view ---- */
   const stats = buildStats({ shows, movies, history, lists, reviews, ratings, reactions });
 
-  // v1 has no diary or favourites sections; their views stay hidden.
-  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary: [], favorites: [], stats };
+  // v1 has no diary, favourites or profile sections; their views stay hidden.
+  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary: [], favorites: [], profile: null, stats };
 }
