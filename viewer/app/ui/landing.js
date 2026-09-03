@@ -1,7 +1,7 @@
 import { APP } from '../core/app.js';
 import { Enrichment, MovieMeta } from '../core/enrich.js';
 import { STATE, UI } from '../core/state.js';
-import { $ } from '../core/util.js';
+import { $, el } from '../core/util.js';
 import { applyState, hashToState, navigate } from './router.js';
 import { buildChrome, closeNavMenus } from './shell.js';
 
@@ -130,7 +130,8 @@ export async function loadArchive(file, opts = {}) {
     STATE.model = APP.buildModel(tables, { manifest });
   } catch (e) {
     console.error(e);
-    return fail('Failed while interpreting the data: ' + e.message);
+    // A zip meant for the other viewer is a recognition problem, not a parse one.
+    return fail(e.wrongViewer ? e.message : 'Failed while interpreting the data: ' + e.message, e.href);
   }
 
   if (APP.afterModel) await APP.afterModel(STATE.model);
@@ -151,11 +152,15 @@ export function showLoading(msg) {
   $('#loadingText').textContent = msg;
 }
 
-export function fail(msg) {
+/* `href`, when the zip belongs to the sibling viewer, turns the message into a
+   way out rather than an instruction to go and find the other page. */
+export function fail(msg, href) {
   $('#loadingBar').hidden = true;
   showChooser();   // reveal the dropzone so the user can pick a file
   const e = $('#landingError');
-  e.textContent = msg; e.hidden = false;
+  e.textContent = msg;
+  if (href) e.append(' Load it ', el('a', { href, text: 'here' }), ' instead.');
+  e.hidden = false;
   return false;
 }
 

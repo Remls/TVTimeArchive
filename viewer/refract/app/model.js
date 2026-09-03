@@ -26,7 +26,10 @@ export function buildRefractModel(tables, opts = {}) {
   // partial exports are valid: Refract let you export any subset of its categories back in v1
   const format = detectFormat(tables, opts.manifest);
   if (!format) {
-    throw new Error('This doesn\'t look like a Refract export. TV Time exports load at the site root instead.');
+    const tvtime = tables['user.csv'] || tables['followed_tv_show.csv'];
+    throw Object.assign(
+      new Error(tvtime ? 'This is a TV Time export.' : 'This doesn\'t look like a Refract export.'),
+      { wrongViewer: true, href: tvtime ? '../' : null });
   }
   const model = format === 'v3' ? buildV3Model(tables, opts.manifest) : buildV1Model(tables);
   model.format = format;
