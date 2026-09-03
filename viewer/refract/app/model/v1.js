@@ -217,8 +217,12 @@ export function buildV1Model(tables) {
   const lists = [...listsByName.values()];
   for (const l of lists) l.items.sort((a, b) => a.position - b.position);
 
-  /* ---- stats for the home view ---- */
-  const stats = buildStats({ shows, movies, history, lists, reviews, ratings });
+  /* ---- reactions: v1 has no mood-tag table of its own, they ride on the
+     review rows ---- */
+  const reactions = reviews.filter(r => r.moodTags.length || r.watchContext.length);
 
-  return { media, shows, movies, history, lists, reviews, ratings, stats };
+  /* ---- stats for the home view ---- */
+  const stats = buildStats({ shows, movies, history, lists, reviews, ratings, reactions });
+
+  return { media, shows, movies, history, lists, reviews, ratings, reactions, stats };
 }

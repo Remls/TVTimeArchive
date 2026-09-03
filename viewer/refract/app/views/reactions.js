@@ -8,11 +8,12 @@ import { targetNav } from './ratings.js';
 const pad2 = (n) => String(n).padStart(2, '0');
 
 /* Refract's closest analog to TV Time reactions: the mood tags (and watch
-   contexts) attached to reviews. */
+   contexts) you attached to a show, movie or episode. v1 carries them on its
+   review rows; v3 keeps them in their own section. */
 export function renderReactions(root) {
-  const reactions = STATE.model.reviews.filter(r => r.moodTags.length || r.watchContext.length);
+  const reactions = STATE.model.reactions;
   listView(root, {
-    title: 'Reactions', subtitle: `${fmtInt(reactions.length)} reviews with mood tags`,
+    title: 'Reactions', subtitle: `${fmtInt(reactions.length)} titles with mood tags`,
     items: reactions, stateKey: 'reactions',
     searchText: (r) => `${r.title} ${r.moodTags.join(' ')} ${r.watchContext.join(' ')}`,
     sorts: [

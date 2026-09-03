@@ -24,6 +24,15 @@ function stampOf(v) {
 
 const numOr = (v) => (typeof v === 'number' && v > 0 ? v : null);   // 0 and null both mean unknown
 
+// v3 target types, mapped to the model's own vocabulary and to display labels.
+const KIND = { tv: 'show', movie: 'movie', episode: 'episode' };
+const TARGET_LABEL = { tv: 'TV Show', movie: 'Movie', episode: 'Episode' };
+
+/* A few episode ratings name an episode that is nowhere else in the export:
+   no mediaItemId, and an episodeTmdbId the episode table doesn't have. The
+   rating is real, so it is kept and labelled rather than dropped. */
+const UNKNOWN = 'Unknown title';
+
 /* episodes.jsonl keeps one row per episode with a rewatchCount, so the dates
    of the repeats live in the diary: every rewatch entry stashes a JSON
    payload in its notes naming the media, the season/episode and when it was
@@ -100,6 +109,8 @@ export function buildV3Model(tables) {
      Refract's own rewatchCount; the dates come from watchedAt plus the diary's
      rewatch snapshots, which cover all but a handful of the repeats. ---- */
   const rewatch = rewatchDates(tables);
+  const epByTmdbSE = new Map();   // "showTmdbId|season|episode" -> { show, ep }
+  const epByEpTmdb = new Map();   // episodeTmdbId -> { show, ep }
   for (const r of rawOf(tables, 'episodes')) {
     const item = r.item;
     if (!item || !item.mediaItemId) continue;
@@ -121,8 +132,125 @@ export function buildV3Model(tables) {
     for (const d of rewatch.byEpisode.get(`${item.mediaItemId}|${season}|${episode}`) || []) ep.dates.push(d);
     ep.dates.sort((a, b) => a - b);
     show.watches += 1 + (r.rewatchCount || 0);
+    epByTmdbSE.set(`${item.tmdbId}|${season}|${episode}`, { show, ep });
+    if (r.episodeTmdbId != null) epByEpTmdb.set(String(r.episodeTmdbId), { show, ep });
   }
 
+  /* ---- ratings.jsonl: the authoritative rating list, one row per target.
+     tv and movie rows put the mediaItemId in targetId. Episode rows carry no
+     mediaItemId at all, so they resolve through the episode table by
+     (show tmdbId, season, episode), else by episodeTmdbId. ---- */
+  const resolveTarget = (r) => {
+    if (r.targetType === 'episode') {
+      return epByTmdbSE.get(`${r.mediaTmdbId}|${r.seasonNumber}|${r.episodeNumber}`)
+          || epByEpTmdb.get(String(r.episodeTmdbId))
+          || null;
+    }
+    const show = byId.get(r.targetId);
+    return show ? { show, ep: null } : null;
+  };
+
+  const rated = new Map();          // dedupe key -> surviving rating entry
+  const byTargetKey = new Map();    // "targetType|targetId" -> entry, every row including deduped ones,
+                                    // so a mood tag keyed on a dropped id still finds its title
+  const allRatings = [];
+  const moodByRating = new Map();   // "targetType|targetId" -> mood tags, the pre-vibes home for them
+  for (const r of rawOf(tables, 'ratings')) {
+    const hit = resolveTarget(r);
+    const target = hit && hit.show;
+    if (r.moodTags && r.moodTags.length) moodByRating.set(`${r.targetType}|${r.targetId}`, r.moodTags);
+    const entry = {
+      title: target ? target.title : UNKNOWN,
+      target, kind: KIND[r.targetType] || 'show', targetType: TARGET_LABEL[r.targetType] || r.targetType,
+      targetKey: `${r.targetType}|${r.targetId}`,
+      season: hit && hit.ep ? hit.ep.season : (r.seasonNumber ?? null),
+      episode: hit && hit.ep ? hit.ep.episode : (r.episodeNumber ?? null),
+      rating: numOr(r.value),
+      date: parseDate(r.createdAt) || stampOf(r.completedOn),
+      completedOn: stampOf(r.completedOn),
+      moodTags: r.moodTags || [],
+      watchContext: r.watchContext || [],
+      visibility: r.visibility || '',
+      source: r.source || '',
+      ep: hit && hit.ep,
+    };
+    /* The TV Time migration re-recorded ratings that already existed natively:
+       a "gdpr-ep-…" legacy_import row beside a refract row for the same
+       episode and the same value. Keep the native one. */
+    const key = target
+      ? (entry.kind === 'episode' ? `${target.mediaItemId}|${entry.season}|${entry.episode}` : target.mediaItemId)
+      : entry.targetKey;
+    const prev = rated.get(key);
+    if (!prev || (prev.source === 'legacy_import' && entry.source !== 'legacy_import')) rated.set(key, entry);
+    byTargetKey.set(entry.targetKey, entry);
+    allRatings.push(entry);
+  }
+
+  const ratings = [...rated.values()];
+  for (const r of ratings) if (r.ep) r.ep.rating = r.rating || r.ep.rating;   // surface it on the seasons accordion too
+  for (const r of allRatings) delete r.ep;
+  ratings.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
+
+  /* ---- mood tags. vibes.jsonl scopes them per target, where ratings.moodTags
+     aggregates a show's episode tags upward, so vibes wins when the export has
+     that section. Its episode rows carry no item, so titles come from the
+     rating on the same target. ---- */
+  const vibeRows = rawOf(tables, 'vibes');
+  const moodFor = new Map();
+  if (vibeRows.length) {
+    for (const v of vibeRows) {
+      if (v.moodTags && v.moodTags.length) moodFor.set(`${v.targetType}|${v.targetId}`, { tags: v.moodTags, date: parseDate(v.createdAt) });
+    }
+  } else {
+    for (const [k, tags] of moodByRating) moodFor.set(k, { tags, date: null });
+  }
+
+  const reactions = [];
+  for (const [key, mood] of moodFor) {
+    const r = byTargetKey.get(key);
+    const [targetType] = key.split('|');
+    reactions.push({
+      title: r ? r.title : UNKNOWN,
+      target: r ? r.target : null,
+      kind: KIND[targetType] || 'show',
+      targetType: TARGET_LABEL[targetType] || targetType,
+      season: r ? r.season : null,
+      episode: r ? r.episode : null,
+      rating: r ? r.rating : null,
+      moodTags: mood.tags,
+      watchContext: (r && r.watchContext) || [],
+      date: mood.date || (r && r.date) || null,
+    });
+  }
+  reactions.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
+
+  /* ---- reviews.jsonl: written prose only. The rating, mood tags and
+     completion date for the same target live in ratings and vibes. ---- */
+  const reviews = [];
+  for (const r of rawOf(tables, 'reviews')) {
+    const key = `${r.targetType}|${r.targetId}`;
+    const scored = byTargetKey.get(key);
+    const hit = resolveTarget(r);
+    const target = (hit && hit.show) || (scored && scored.target) || null;
+    const mood = moodFor.get(key);
+    const entry = {
+      title: target ? target.title : UNKNOWN,
+      target, kind: KIND[r.targetType] || 'show', targetType: TARGET_LABEL[r.targetType] || r.targetType,
+      season: r.seasonNumber ?? null,
+      episode: r.episodeNumber ?? null,
+      rating: scored ? scored.rating : null,
+      text: r.body || '',
+      moodTags: (mood && mood.tags) || [],
+      watchContext: (scored && scored.watchContext) || [],
+      isSpoiler: !!r.isSpoiler,
+      visibility: r.visibility || '',
+      completedOn: scored ? scored.completedOn : null,
+      date: parseDate(r.createdAt),
+    };
+    reviews.push(entry);
+    if (target) target.reviews.push(entry);
+  }
+  reviews.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
   /* ---- watch history: one event per dated watch, the earliest being the
      original and the rest rewatches. An episode marked watched with no date
      still gets an event, so it shows up under an unknown date rather than
@@ -149,10 +277,10 @@ export function buildV3Model(tables) {
   assignSlugs(shows);
   assignSlugs(movies);
 
-  const lists = [], reviews = [], ratings = [];
+  const lists = [];
 
   /* ---- stats for the home view ---- */
-  const stats = buildStats({ shows, movies, history, lists, reviews, ratings });
+  const stats = buildStats({ shows, movies, history, lists, reviews, ratings, reactions });
 
-  return { media, shows, movies, history, lists, reviews, ratings, stats };
+  return { media, shows, movies, history, lists, reviews, ratings, reactions, stats };
 }

@@ -31,7 +31,7 @@ export function assignSlugs(list) {
 
 /* Home-view rollups. v3 carries no anime flag, so its shows all land under
    tvShows and anime comes out zero. */
-export function buildStats({ shows, movies, history, lists, reviews, ratings }) {
+export function buildStats({ shows, movies, history, lists, reviews, ratings, reactions }) {
   const epByMonth = new Map(), moviesByYear = new Map(), ratingHist = new Map(), moodCounts = new Map();
   let firstWatch = null, lastWatch = null;
   for (const h of history) {
@@ -47,7 +47,7 @@ export function buildStats({ shows, movies, history, lists, reviews, ratings }) 
     }
   }
   for (const r of ratings) ratingHist.set(r.rating, (ratingHist.get(r.rating) || 0) + 1);
-  for (const r of reviews) for (const m of r.moodTags) moodCounts.set(m, (moodCounts.get(m) || 0) + 1);
+  for (const r of reactions) for (const m of r.moodTags) moodCounts.set(m, (moodCounts.get(m) || 0) + 1);
   return {
     tvShows: shows.filter(s => !s.isAnime).length,
     anime: shows.filter(s => s.isAnime).length,
