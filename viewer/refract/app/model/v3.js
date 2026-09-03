@@ -24,6 +24,33 @@ function stampOf(v) {
 
 const numOr = (v) => (typeof v === 'number' && v > 0 ? v : null);   // 0 and null both mean unknown
 
+/* episodes.jsonl keeps one row per episode with a rewatchCount, so the dates
+   of the repeats live in the diary: every rewatch entry stashes a JSON
+   payload in its notes naming the media, the season/episode and when it was
+   rewatched. An episode's own watchedAt is its first watch and every snapshot
+   sits after it, so the two never describe the same viewing. */
+const REWATCH_PREFIX = '__rewatch_snapshot_v1__:';
+
+function rewatchDates(tables) {
+  const byEpisode = new Map();   // "mediaItemId|season|episode" -> [Date]
+  const byMovie = new Map();     // mediaItemId -> [Date]
+  for (const r of rawOf(tables, 'diary')) {
+    const notes = r.notes || '';
+    if (!notes.startsWith(REWATCH_PREFIX)) continue;
+    let p;
+    try { p = JSON.parse(notes.slice(REWATCH_PREFIX.length)); } catch { continue; }
+    const date = parseDate(p.watchedDate);
+    if (!date || !p.mediaItemId) continue;
+    const c = p.episodeComposite;
+    const into = (c && c.seasonNumber != null && c.episodeNumber != null)
+      ? [byEpisode, `${p.mediaItemId}|${c.seasonNumber}|${c.episodeNumber}`]
+      : [byMovie, p.mediaItemId];
+    if (!into[0].has(into[1])) into[0].set(into[1], []);
+    into[0].get(into[1]).push(date);
+  }
+  return { byEpisode, byMovie };
+}
+
 /* One library/media entry. `title` is the English one when Refract has it:
    item.title is a localized snapshot that changes between exports, while
    englishTitle is stable (though blank on some rows, hence the fallback). */
@@ -69,10 +96,10 @@ export function buildV3Model(tables) {
   const movies = media.filter(m => m.isMovie);
   for (const s of shows) { s.episodes = new Map(); s.epWatched = 0; s.watches = 0; s.firstWatched = null; s.lastWatched = null; }
 
-  /* ---- episodes.jsonl: one row per episode, not per watch. rewatchCount
-     carries the repeats; their individual dates are recovered from the
-     diary's rewatch snapshots. ---- */
-  const history = [];
+  /* ---- episodes.jsonl: one row per episode, not per watch. count comes from
+     Refract's own rewatchCount; the dates come from watchedAt plus the diary's
+     rewatch snapshots, which cover all but a handful of the repeats. ---- */
+  const rewatch = rewatchDates(tables);
   for (const r of rawOf(tables, 'episodes')) {
     const item = r.item;
     if (!item || !item.mediaItemId) continue;
@@ -89,17 +116,32 @@ export function buildV3Model(tables) {
     if (!ep) { ep = { season, episode, count: 0, dates: [], rating: null }; show.episodes.set(epKey, ep); show.epWatched++; }
     ep.count += 1 + (r.rewatchCount || 0);
     ep.rating = numOr(r.rating) || ep.rating;
-    const date = stampOf(r.watchedAt);   // null on episodes marked watched without a date
-    if (date) {
-      ep.dates.push(date);
-      if (!show.firstWatched || date < show.firstWatched) show.firstWatched = date;
-      if (!show.lastWatched || date > show.lastWatched) show.lastWatched = date;
-    }
+    const first = stampOf(r.watchedAt);   // null on an episode marked watched without a date
+    if (first) ep.dates.push(first);
+    for (const d of rewatch.byEpisode.get(`${item.mediaItemId}|${season}|${episode}`) || []) ep.dates.push(d);
+    ep.dates.sort((a, b) => a - b);
     show.watches += 1 + (r.rewatchCount || 0);
-    history.push({ type: 'episode', title: show.title, ref: show, season, episode, rewatch: false, date, ts: date ? date.getTime() : 0, rating: ep.rating });
+  }
+
+  /* ---- watch history: one event per dated watch, the earliest being the
+     original and the rest rewatches. An episode marked watched with no date
+     still gets an event, so it shows up under an unknown date rather than
+     vanishing. ---- */
+  const history = [];
+  for (const s of shows) {
+    for (const ep of s.episodes.values()) {
+      const base = { type: 'episode', title: s.title, ref: s, season: ep.season, episode: ep.episode, rating: ep.rating };
+      if (!ep.dates.length) { history.push({ ...base, rewatch: false, date: null, ts: 0 }); continue; }
+      ep.dates.forEach((date, i) => {
+        if (!s.firstWatched || date < s.firstWatched) s.firstWatched = date;
+        if (!s.lastWatched || date > s.lastWatched) s.lastWatched = date;
+        history.push({ ...base, rewatch: i > 0, date, ts: date.getTime() });
+      });
+    }
   }
   for (const m of movies) {
-    if (m.watchedDate) history.push({ type: 'movie', title: m.title, ref: m, date: m.watchedDate, ts: m.watchedDate.getTime(), rating: m.rating });
+    const dates = (m.watchedDate ? [m.watchedDate] : []).concat(rewatch.byMovie.get(m.mediaItemId) || []).sort((a, b) => a - b);
+    dates.forEach((date, i) => history.push({ type: 'movie', title: m.title, ref: m, rewatch: i > 0, date, ts: date.getTime(), rating: m.rating }));
   }
   history.sort((a, b) => b.ts - a.ts);
 
