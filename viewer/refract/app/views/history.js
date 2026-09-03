@@ -4,10 +4,10 @@ import { STATE } from '../../../app/core/state.js';
 import { download, el, fmtDate, fmtInt, norm, toCSV } from '../../../app/core/util.js';
 import { buildToolbar, emptyState, menuSelect, viewHead } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
-import { enrichItem, kindIcon, metaYear, rating10 } from '../kit.js';
+import { enrichItem, kindIcon, metaYear, rating10, seriesIdOf } from '../kit.js';
 
 function historyItem(ev) {
-  const info = ev.type === 'episode' ? Enrichment.epInfo(ev.title, '', ev.season, ev.episode, metaYear(ev.ref)) : null;
+  const info = ev.type === 'episode' ? Enrichment.epInfo(ev.title, seriesIdOf(ev.ref), ev.season, ev.episode, metaYear(ev.ref)) : null;
   const epName = info && info.name;
   const sub = ev.type === 'episode'
     ? `S${ev.season || '?'}E${ev.episode || '?'}${epName ? ' ' + epName : ''}${ev.rewatch ? ' (rewatch)' : ''}`

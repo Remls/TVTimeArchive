@@ -4,7 +4,7 @@ import { STATE } from '../../../app/core/state.js';
 import { $, el, fmtDate, fmtInt } from '../../../app/core/util.js';
 import { detailScaffold, emptyState, listView, posterCard, statusBadge } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
-import { countryNames, enrichItem, kindIcon, metaYear, moodChips, rating10, reviewText, tagChips } from '../kit.js';
+import { countryNames, enrichItem, kindIcon, metaYear, moodChips, rating10, reviewText, seriesIdOf, tagChips } from '../kit.js';
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
@@ -35,7 +35,7 @@ export function showsGallery(root, { viewId, title, items, exportName }) {
       { id: 'az', label: 'Alphabetical', fn: (a, b) => a.title.localeCompare(b.title) },
     ],
     renderItem: (s) => posterCard({
-      kind: 'show', kindIcon: kindIcon(s), title: s.title, year: metaYear(s),
+      kind: 'show', kindIcon: kindIcon(s), title: s.title, year: metaYear(s), seriesId: seriesIdOf(s),
       secondary: s.originalTitle && s.originalTitle !== s.title ? s.originalTitle : null,
       status: s.status, rating: s.rating,
       sub: [s.year, s.epWatched ? `${fmtInt(s.epWatched)} episodes watched` : null].filter(Boolean).join(', ') || null,
@@ -86,7 +86,7 @@ export function openShowDetail(show) {
     ]));
   }
 
-  const key = Enrichment.keyFor('', show.title, metaYear(show));
+  const key = Enrichment.keyFor(seriesIdOf(show), show.title, metaYear(show));
   const load = () => {
     body.querySelector('.seasons-host').innerHTML = '';
     body.querySelector('.seasons-host').append(el('div', { class: 'enrich-note' }, [el('div', { class: 'spinner' }), 'Loading from TVmaze…']));

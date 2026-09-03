@@ -8,8 +8,12 @@ import { chip } from '../../app/ui/kit.js';
 // name-keyed cache with the TV Time viewer.
 export const metaYear = (m) => (m && m.ambiguous ? m.year : null);
 
+// v3 carries a TheTVDB id, which TVmaze looks up directly and which shares the
+// TV Time viewer's cache keys. v1 has no ids, so it keeps searching by name.
+export const seriesIdOf = (m) => (m && m.tvdbId ? String(m.tvdbId) : '');
+
 // Enrichment work item: year drives disambiguation, hintYear guards fuzzy matches.
-export const enrichItem = (m) => ({ seriesId: '', title: m.title, year: metaYear(m), hintYear: m.year });
+export const enrichItem = (m) => ({ seriesId: seriesIdOf(m), title: m.title, year: metaYear(m), hintYear: m.year });
 
 // null defers to the caller's default (the TV icon)
 export const kindIcon = (m) => (m && m.isAnime ? 'ph-flower-lotus' : null);

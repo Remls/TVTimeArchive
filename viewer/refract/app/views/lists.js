@@ -2,7 +2,7 @@ import { STATE } from '../../../app/core/state.js';
 import { el, fmtInt } from '../../../app/core/util.js';
 import { emptyState, ensureShowPosters, posterCard, viewHead } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
-import { enrichItem, kindIcon, metaYear } from '../kit.js';
+import { enrichItem, kindIcon, metaYear, seriesIdOf } from '../kit.js';
 
 export function renderLists(root) {
   const lists = STATE.model.lists;
@@ -27,7 +27,7 @@ export function renderLists(root) {
       if (m && !m.isMovie) posterItems.push(enrichItem(m));
       const card = posterCard({
         kind: m && m.isMovie ? 'movie' : 'show', kindIcon: kindIcon(m),
-        title: m ? m.title : it.title, year: metaYear(m),
+        title: m ? m.title : it.title, year: metaYear(m), seriesId: seriesIdOf(m),
         sub: [it.year || (m && m.year), it.note].filter(Boolean).join(', '),
         onClick: m ? () => navigate({ view: m.isMovie ? 'movies' : (m.isAnime ? 'anime' : 'shows'), detail: m.slug }) : null,
       });

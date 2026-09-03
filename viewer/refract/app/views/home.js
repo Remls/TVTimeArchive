@@ -2,7 +2,7 @@ import { STATE } from '../../../app/core/state.js';
 import { el, fmtDate, fmtInt } from '../../../app/core/util.js';
 import { barChart, chip, emptyState, ensureShowPosters, posterCard, viewHead } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
-import { enrichItem, kindIcon, metaYear, moodText } from '../kit.js';
+import { enrichItem, kindIcon, metaYear, moodText, seriesIdOf } from '../kit.js';
 
 const MONTHS_SHOWN = 24;   // most-recent months in the episodes chart; older data stays in Watch history
 
@@ -36,7 +36,7 @@ export function renderHome(root) {
   const gallery = el('div', { class: 'poster-gallery' });
   for (const s of top) {
     gallery.append(posterCard({
-      kind: 'show', kindIcon: kindIcon(s), title: s.title, year: metaYear(s), status: s.status, rating: s.rating,
+      kind: 'show', kindIcon: kindIcon(s), title: s.title, year: metaYear(s), seriesId: seriesIdOf(s), status: s.status, rating: s.rating,
       sub: `${fmtInt(s.epWatched)} episodes`,
       onClick: () => navigate({ view: s.isAnime ? 'anime' : 'shows', detail: s.slug }),
     }));

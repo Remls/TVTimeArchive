@@ -3,7 +3,7 @@ import { STATE } from '../../../app/core/state.js';
 import { el, fmtDate, fmtInt } from '../../../app/core/util.js';
 import { listView } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
-import { kindIcon, metaYear, rating10 } from '../kit.js';
+import { kindIcon, metaYear, rating10, seriesIdOf } from '../kit.js';
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
@@ -40,8 +40,9 @@ export function renderRatings(root) {
       const kids = [];
       if (Enrichment.enabled && r.kind !== 'movie') {
         const yr = metaYear(r.target);
-        const info = r.kind === 'episode' ? Enrichment.epInfo(r.title, '', r.season, r.episode, yr) : null;
-        const url = (info && info.image) || Enrichment.posterFor(r.title, '', yr);
+        const sid = seriesIdOf(r.target);
+        const info = r.kind === 'episode' ? Enrichment.epInfo(r.title, sid, r.season, r.episode, yr) : null;
+        const url = (info && info.image) || Enrichment.posterFor(r.title, sid, yr);
         kids.push(el('div', { class: 'item-thumb' }, url ? [el('img', { src: url, loading: 'lazy', alt: '' })] : []));
       }
       kids.push(el('div', { class: 'item-main' }, [
