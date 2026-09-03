@@ -1,6 +1,6 @@
 import { STATE } from '../core/state.js';
 import { $, download, el, fmtInt, norm, toCSV } from '../core/util.js';
-import { buildToolbar, viewHead } from '../ui/kit.js';
+import { buildToolbar, emptyState, viewHead } from '../ui/kit.js';
 
 export function renderRaw(root) {
   const n = Object.keys(STATE.tables).length;
@@ -53,6 +53,18 @@ export function renderRaw(root) {
     const pages = Math.max(1, Math.ceil(rows.length / state.pageSize));
     state.page = Math.min(state.page, pages - 1);
     const slice = rows.slice(state.page * state.pageSize, (state.page + 1) * state.pageSize);
+
+    // A section can be empty in the export itself, which would otherwise draw
+    // a table with no columns and no rows.
+    if (!rows.length) {
+      tableWrap.innerHTML = '';
+      tableWrap.append(tbl.rows.length
+        ? emptyState('Nothing matches your search', { icon: 'ph-magnifying-glass' })
+        : emptyState('This file is empty', { icon: 'ph-tray' }));
+      pager.innerHTML = '';
+      persist();
+      return;
+    }
 
     const table = el('table', { class: 'data' });
     const thead = el('thead'); const htr = el('tr');
