@@ -277,7 +277,45 @@ export function buildV3Model(tables) {
   assignSlugs(shows);
   assignSlugs(movies);
 
+  /* ---- lists.jsonl + list_items.jsonl, joined on listId. v1 denormalized
+     both into one row per item; v3 keeps the list's own metadata separate.
+     Each list carries the sortOrder Refract displays it in, and each item a
+     zero-based sortOrder within its list. ---- */
   const lists = [];
+  const listById = new Map();
+  for (const r of rawOf(tables, 'lists')) {
+    if (!r.listId || listById.has(r.listId)) continue;
+    const entry = {
+      listId: r.listId,
+      name: r.title || '',
+      description: r.description || '',
+      isPublic: !!r.isPublic,
+      visibility: r.visibility || '',
+      isSmartList: !!r.isSmartList,
+      isOrdered: !!r.isOrdered,
+      sortOrder: r.sortOrder ?? 0,
+      items: [],
+    };
+    listById.set(entry.listId, entry);
+    lists.push(entry);
+  }
+  for (const r of rawOf(tables, 'list_items')) {
+    const list = listById.get(r.listId);
+    if (!list) continue;   // an item whose list is not in the export
+    const item = r.item || {};
+    const media = byId.get(item.mediaItemId) || null;
+    list.items.push({
+      title: media ? media.title : (item.englishTitle || item.title || ''),
+      year: media ? media.year : numOr(item.year),
+      type: item.mediaType || '',
+      note: r.note || '',
+      position: r.sortOrder ?? 0,
+      addedAt: parseDate(r.addedAt),
+      media,
+    });
+  }
+  for (const l of lists) l.items.sort((a, b) => a.position - b.position);
+  lists.sort((a, b) => a.sortOrder - b.sortOrder);
 
   /* ---- stats for the home view ---- */
   const stats = buildStats({ shows, movies, history, lists, reviews, ratings, reactions });
