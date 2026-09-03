@@ -33,6 +33,9 @@ const TARGET_LABEL = { tv: 'TV Show', movie: 'Movie', episode: 'Episode' };
    rating is real, so it is kept and labelled rather than dropped. */
 const UNKNOWN = 'Unknown title';
 
+// diary.jsonl action types, as sentences rather than tokens.
+const DIARY_LABEL = { completed: 'Completed', rewatch: 'Rewatched', episode: 'Watched', rated: 'Rated', added: 'Added' };
+
 /* episodes.jsonl keeps one row per episode with a rewatchCount, so the dates
    of the repeats live in the diary: every rewatch entry stashes a JSON
    payload in its notes naming the media, the season/episode and when it was
@@ -40,14 +43,17 @@ const UNKNOWN = 'Unknown title';
    sits after it, so the two never describe the same viewing. */
 const REWATCH_PREFIX = '__rewatch_snapshot_v1__:';
 
+const rewatchPayload = (notes) => {
+  if (!notes || !notes.startsWith(REWATCH_PREFIX)) return null;
+  try { return JSON.parse(notes.slice(REWATCH_PREFIX.length)); } catch { return null; }
+};
+
 function rewatchDates(tables) {
   const byEpisode = new Map();   // "mediaItemId|season|episode" -> [Date]
   const byMovie = new Map();     // mediaItemId -> [Date]
   for (const r of rawOf(tables, 'diary')) {
-    const notes = r.notes || '';
-    if (!notes.startsWith(REWATCH_PREFIX)) continue;
-    let p;
-    try { p = JSON.parse(notes.slice(REWATCH_PREFIX.length)); } catch { continue; }
+    const p = rewatchPayload(r.notes);
+    if (!p) continue;
     const date = parseDate(p.watchedDate);
     if (!date || !p.mediaItemId) continue;
     const c = p.episodeComposite;
@@ -317,8 +323,57 @@ export function buildV3Model(tables) {
   for (const l of lists) l.items.sort((a, b) => a.position - b.position);
   lists.sort((a, b) => a.sortOrder - b.sortOrder);
 
+  /* ---- diary.jsonl: Refract's activity log, one row per thing you did. ---- */
+  const diary = [];
+  for (const r of rawOf(tables, 'diary')) {
+    const item = r.item || {};
+    const target = byId.get(item.mediaItemId) || null;
+    /* A rewatch row's note is the machine-readable snapshot, not prose. Its
+       payload still names the season and episode, so the entry reads the same
+       way a plain watch does ("S1E12") instead of showing nothing. */
+    const snap = rewatchPayload(r.notes);
+    const composite = snap && snap.episodeComposite;
+    const note = snap
+      ? (composite && composite.seasonNumber != null && composite.episodeNumber != null
+          ? `S${composite.seasonNumber}E${composite.episodeNumber}` : '')
+      : (r.notes || '');
+    diary.push({
+      action: r.actionType || '',
+      label: DIARY_LABEL[r.actionType] || r.actionType || '',
+      title: target ? target.title : (item.englishTitle || item.title || UNKNOWN),
+      target,
+      kind: item.mediaType === 'movie' ? 'movie' : 'show',
+      rating: numOr(r.rating),
+      note,
+      imported: !!r.imported,
+      date: stampOf(r.actionDate) || parseDate(r.occurredAt),
+    });
+  }
+  diary.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
+
+  /* ---- favorites.jsonl. `kind` splits anime from shows, which nothing else
+     in v3 does, but the badge follows mediaType like every other view. ---- */
+  const favorites = [];
+  for (const r of rawOf(tables, 'favorites')) {
+    const item = r.item || {};
+    const target = byId.get(item.mediaItemId) || null;
+    favorites.push({
+      title: target ? target.title : (item.englishTitle || item.title || UNKNOWN),
+      target,
+      kind: item.mediaType === 'movie' ? 'movie' : 'show',
+      season: r.seasonNumber ?? null,
+      episode: r.episodeNumber ?? null,
+      episodeName: r.episodeName || '',
+      personName: r.personName || '',
+      sortOrder: r.sortOrder ?? null,
+      date: parseDate(r.createdAt),
+    });
+  }
+  favorites.sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
+    || (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
+
   /* ---- stats for the home view ---- */
   const stats = buildStats({ shows, movies, history, lists, reviews, ratings, reactions });
 
-  return { media, shows, movies, history, lists, reviews, ratings, reactions, stats };
+  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary, favorites, stats };
 }

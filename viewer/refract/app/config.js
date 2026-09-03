@@ -10,12 +10,15 @@ import { renderRatings } from './views/ratings.js';
 import { renderReactions } from './views/reactions.js';
 import { renderReviews } from './views/reviews.js';
 import { openShowDetail, renderAnime, renderShows } from './views/shows.js';
+import { renderDiary } from './views/diary.js';
+import { renderFavorites } from './views/favorites.js';
 
 // Shows and Anime are separate nav views over the same entity pool, so both
 // route to the same detail opener.
 const showDetail = { find: (slug) => findBySlug(STATE.model.shows, slug), open: openShowDetail };
 
 const hasAnime = (model) => model.shows.some(s => s.isAnime);
+const has = (key) => (model) => (model[key] || []).length > 0;
 
 export const REFRACT_APP = {
   brand: { title: 'Refract Archive' },
@@ -28,6 +31,8 @@ export const REFRACT_APP = {
     { id: 'anime',  label: 'Anime',  icon: 'ph-flower-lotus', render: renderAnime, available: hasAnime, fallback: 'shows' },
     { id: 'movies', label: 'Movies', icon: 'ph-film-slate', render: renderMovies },
     { id: 'watch-history', label: 'Watch history', icon: 'ph-clock-counter-clockwise', render: renderHistory },
+    { id: 'diary',  label: 'Diary',  icon: 'ph-notebook', render: renderDiary, available: has('diary') },
+    { id: 'favorites', label: 'Favourites', icon: 'ph-star', render: renderFavorites, available: has('favorites') },
     { id: 'lists',  label: 'Lists',  icon: 'ph-list-bullets', render: renderLists },
     // Ratings group
     { id: 'ratings', label: 'Ratings', icon: 'ph-star', render: renderRatings },
@@ -36,7 +41,7 @@ export const REFRACT_APP = {
     { id: 'raw',    label: 'All data', icon: 'ph-database', render: renderRaw },
   ],
   groups: {
-    watch:   { label: 'Watch',   icon: 'ph-play-circle', children: ['shows', 'anime', 'movies', 'watch-history', 'lists'] },
+    watch:   { label: 'Watch',   icon: 'ph-play-circle', children: ['shows', 'anime', 'movies', 'watch-history', 'diary', 'favorites', 'lists'] },
     ratings: { label: 'Ratings', icon: 'ph-star',        children: ['ratings', 'reactions', 'reviews'] },
   },
   detail: {
