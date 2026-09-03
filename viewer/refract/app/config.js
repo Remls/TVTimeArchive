@@ -15,13 +15,17 @@ import { openShowDetail, renderAnime, renderShows } from './views/shows.js';
 // route to the same detail opener.
 const showDetail = { find: (slug) => findBySlug(STATE.model.shows, slug), open: openShowDetail };
 
+const hasAnime = (model) => model.shows.some(s => s.isAnime);
+
 export const REFRACT_APP = {
   brand: { title: 'Refract Archive' },
   views: [
     { id: 'home',   label: 'Home',   icon: 'ph-house', render: renderHome },
     // Watch group
     { id: 'shows',  label: 'TV Shows', icon: 'ph-television', render: renderShows },
-    { id: 'anime',  label: 'Anime',  icon: 'ph-flower-lotus', render: renderAnime },
+    // v1 tags each title Anime or TV Show; v3 dropped the distinction and nothing
+    // in that export restores it, so the split only exists where the data does.
+    { id: 'anime',  label: 'Anime',  icon: 'ph-flower-lotus', render: renderAnime, available: hasAnime, fallback: 'shows' },
     { id: 'movies', label: 'Movies', icon: 'ph-film-slate', render: renderMovies },
     { id: 'watch-history', label: 'Watch history', icon: 'ph-clock-counter-clockwise', render: renderHistory },
     { id: 'lists',  label: 'Lists',  icon: 'ph-list-bullets', render: renderLists },

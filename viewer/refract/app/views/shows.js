@@ -43,8 +43,10 @@ export function showsGallery(root, { viewId, title, items, exportName }) {
     }),
     exportName,
     exportRow: (s) => ({
-      title: s.title, original_title: s.originalTitle, year: s.year ?? '', type: s.type,
-      countries: s.countries.join('|'), status: s.status, rating: s.rating ?? '',
+      title: s.title, original_title: s.originalTitle, year: s.year ?? '',
+      // v3 has neither a type worth exporting (always "tv") nor countries
+      ...(STATE.model.format === 'v3' ? {} : { type: s.type, countries: s.countries.join('|') }),
+      status: s.status, rating: s.rating ?? '',
       episodes_watched: s.epWatched, watch_events: s.watches,
       first_watched: s.firstWatched ? s.firstWatched.toISOString() : '',
       last_watched: s.lastWatched ? s.lastWatched.toISOString() : '',

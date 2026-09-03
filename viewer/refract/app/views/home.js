@@ -16,8 +16,9 @@ export function renderHome(root) {
     // the two watched totals are the hero stats; the rest read neutral
     ['Episodes watched', fmtInt(st.episodesWatched), 'accent'],
     ['Movies watched', fmtInt(st.moviesWatched), 'accent'],
+    // Without the anime split, tvShows already counts every show.
     ['TV shows tracked', fmtInt(st.tvShows), ''],
-    ['Anime tracked', fmtInt(st.anime), ''],
+    ...(st.anime ? [['Anime tracked', fmtInt(st.anime), '']] : []),
     ['Movies tracked', fmtInt(st.movies), ''],
     ['Lists created', fmtInt(st.lists), ''],
     ['Ratings given', fmtInt(st.ratings), ''],

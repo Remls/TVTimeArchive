@@ -11,7 +11,7 @@ function historyItem(ev) {
   const epName = info && info.name;
   const sub = ev.type === 'episode'
     ? `S${ev.season || '?'}E${ev.episode || '?'}${epName ? ' ' + epName : ''}${ev.rewatch ? ' (rewatch)' : ''}`
-    : 'Movie';
+    : `Movie${ev.rewatch ? ' (rewatch)' : ''}`;
   const kids = [];
   if (Enrichment.enabled) {
     kids.push(zoomImg('item-thumb', info && info.image, ev.title, info && info.imageFull));

@@ -1,4 +1,4 @@
-import { APP } from '../core/app.js';
+import { APP, activeViews, viewFallback } from '../core/app.js';
 import { STATE } from '../core/state.js';
 import { $ } from '../core/util.js';
 import { closeNavMenus } from './shell.js';
@@ -15,10 +15,10 @@ export function renderView(id) {
   const root = $('#viewRoot');
   root.innerHTML = '';
   window.scrollTo(0, 0);
-  (APP.views.find(v => v.id === id) || APP.views[0]).render(root);
+  (activeViews().find(v => v.id === id) || activeViews()[0]).render(root);
 }
 
-export const isView = (id) => APP.views.some(v => v.id === id);
+export const isView = (id) => activeViews().some(v => v.id === id);
 
 export function stateToHash(s) {
   if (APP.detail[s.view] && s.detail) return `#/${s.view}/${s.detail}`;
@@ -27,8 +27,13 @@ export function stateToHash(s) {
 
 export function hashToState() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
-  if (APP.detail[parts[0]] && parts[1]) return { view: parts[0], detail: decodeURIComponent(parts[1]) };
-  return { view: isView(parts[0]) ? parts[0] : 'home' };
+  // A link saved against another export's view set (an #/anime/… bookmark from a
+  // v1 archive, say) keeps its target and lands on the view that replaced it.
+  if (APP.detail[parts[0]] && parts[1]) {
+    const view = isView(parts[0]) ? parts[0] : viewFallback(parts[0]);
+    return { view, detail: decodeURIComponent(parts[1]) };
+  }
+  return { view: isView(parts[0]) ? parts[0] : (APP.views.some(v => v.id === parts[0]) ? viewFallback(parts[0]) : 'home') };
 }
 
 export function applyState(state) {

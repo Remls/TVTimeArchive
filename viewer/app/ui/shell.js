@@ -1,4 +1,4 @@
-import { APP } from '../core/app.js';
+import { APP, activeViews } from '../core/app.js';
 import { Enrichment, MovieMeta } from '../core/enrich.js';
 import { avatarEl } from '../core/media.js';
 import { STATE, UI } from '../core/state.js';
@@ -20,7 +20,8 @@ export function buildChrome() {
   const seenGroup = new Set();
   const activeNav = APP.groupOf[STATE.view] ? 'group:' + APP.groupOf[STATE.view] : STATE.view;
   const isDesktop = () => window.matchMedia('(min-width: 860px)').matches;
-  for (const v of APP.views) {
+  const views = activeViews();
+  for (const v of views) {
     const gid = APP.groupOf[v.id];
     if (gid) {
       if (seenGroup.has(gid)) continue;   // one tab per group, at its first child's slot
@@ -29,8 +30,9 @@ export function buildChrome() {
       const groupTab = el('button', { class: 'tab group' + (activeNav === navId ? ' active' : ''), 'data-view': navId },
         [el('i', { class: 'ph ' + g.icon + ' tab-ico' }), el('span', { text: g.label }), el('i', { class: 'ph ph-caret-down nav-caret' })]);
       const sub = el('div', { class: 'subnav' });
-      for (const cid of g.children) {
-        const cv = APP.views.find(x => x.id === cid); if (!cv) continue;
+      const children = g.children.filter(cid => views.some(x => x.id === cid));
+      for (const cid of children) {
+        const cv = views.find(x => x.id === cid); if (!cv) continue;
         const item = el('button', { class: 'subnav-item' + (STATE.view === cid ? ' active' : ''), 'data-view': cid },
           [el('i', { class: 'ph ' + cv.icon }), el('span', { text: cv.label })]);
         item.addEventListener('click', () => { closeNavMenus(); navigate({ view: cid }); });
@@ -38,7 +40,7 @@ export function buildChrome() {
       }
       groupTab.addEventListener('click', () => {
         // Desktop: enter the group (children nest via CSS). Mobile: toggle the popup.
-        if (isDesktop()) { closeNavMenus(); navigate({ view: g.children[0] }); }
+        if (isDesktop()) { closeNavMenus(); navigate({ view: children[0] }); }
         else {
           const isOpen = navPopup && navPopup.tab === groupTab;
           closeNavMenus();
