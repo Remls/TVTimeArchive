@@ -87,6 +87,7 @@ function entryOf(item) {
     review: '',
     sources: [],
     reviews: [],
+    comments: [],
     ambiguous: false,        // ids, not titles: never ambiguous
   };
 }
@@ -130,7 +131,7 @@ export function buildV3Model(tables, manifest) {
     const season = r.seasonNumber ?? 0, episode = r.episodeNumber ?? 0;
     const epKey = season + '|' + episode;
     let ep = show.episodes.get(epKey);
-    if (!ep) { ep = { season, episode, count: 0, dates: [], rating: null }; show.episodes.set(epKey, ep); show.epWatched++; }
+    if (!ep) { ep = { season, episode, count: 0, dates: [], rating: null, comments: [] }; show.episodes.set(epKey, ep); show.epWatched++; }
     ep.count += 1 + (r.rewatchCount || 0);
     ep.rating = numOr(r.rating) || ep.rating;
     const first = stampOf(r.watchedAt);   // null on an episode marked watched without a date
@@ -372,6 +373,42 @@ export function buildV3Model(tables, manifest) {
   favorites.sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
     || (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
 
+  /* ---- comments.jsonl, present only when the export included archived
+     sections. An episode comment's targetId is a TMDB episode id, so it
+     resolves through the same index the ratings use; tv and movie comments
+     carry a mediaItemId. Replies to other people's comments name a comment
+     that is not in your own export, so they keep their text and lose their
+     thread. ---- */
+  const comments = [];
+  for (const r of rawOf(tables, 'comments')) {
+    const hit = r.targetType === 'episode'
+      ? epByEpTmdb.get(String(r.targetId))
+      : (byId.has(r.targetId) ? { show: byId.get(r.targetId), ep: null } : null);
+    const target = hit && hit.show;
+    const entry = {
+      title: target ? target.title : UNKNOWN,
+      target,
+      kind: KIND[r.targetType] || 'show',
+      targetType: r.targetType === 'comment' ? 'Reply' : (TARGET_LABEL[r.targetType] || r.targetType),
+      season: hit && hit.ep ? hit.ep.season : null,
+      episode: hit && hit.ep ? hit.ep.episode : null,
+      text: r.body || '',
+      isSpoiler: !!r.isSpoiler,
+      visibility: r.visibility || '',
+      source: r.source || '',
+      moodTags: [], watchContext: [], rating: null,   // so a comment renders like a review
+      date: parseDate(r.createdAt),
+      editedAt: parseDate(r.editedAt),
+    };
+    comments.push(entry);
+    // An episode comment belongs to its episode row; a show or movie one to the title.
+    if (hit && hit.ep) hit.ep.comments.push(entry);
+    else if (target) target.comments.push(entry);
+  }
+  comments.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
+  // oldest first within an episode, so a comment reads before any follow-up
+  for (const s of shows) for (const ep of s.episodes.values()) ep.comments.sort((a, b) => (a.date?.getTime() || 0) - (b.date?.getTime() || 0));
+
   /* ---- profile.jsonl: one row of account settings. Most of it is kept
      verbatim for the view to label; only the parts needing other sections are
      resolved here. avatarUrl is a path on Refract's own server rather than a
@@ -397,5 +434,5 @@ export function buildV3Model(tables, manifest) {
   /* ---- stats for the home view ---- */
   const stats = buildStats({ shows, movies, history, lists, reviews, ratings, reactions });
 
-  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary, favorites, profile, stats };
+  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary, favorites, comments, profile, stats };
 }

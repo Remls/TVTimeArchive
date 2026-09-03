@@ -70,4 +70,9 @@ export function openMovieDetail(mv) {
     body.append(el('div', { class: 'section-title', text: mv.reviews.length === 1 ? '1 review' : `${fmtInt(mv.reviews.length)} reviews` }));
     for (const r of mv.reviews) body.append(reviewCard(r));
   }
+
+  if (mv.comments.length) {
+    body.append(el('div', { class: 'section-title', text: mv.comments.length === 1 ? '1 comment' : `${fmtInt(mv.comments.length)} comments` }));
+    for (const c of mv.comments) body.append(reviewCard(c));
+  }
 }

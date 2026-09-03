@@ -13,6 +13,7 @@ import { openShowDetail, renderAnime, renderShows } from './views/shows.js';
 import { renderDiary } from './views/diary.js';
 import { renderFavorites } from './views/favorites.js';
 import { renderProfile } from './views/profile.js';
+import { renderComments } from './views/comments.js';
 
 // Shows and Anime are separate nav views over the same entity pool, so both
 // route to the same detail opener.
@@ -39,12 +40,14 @@ export const REFRACT_APP = {
     { id: 'ratings', label: 'Ratings', icon: 'ph-star', render: renderRatings },
     { id: 'reactions', label: 'Reactions', icon: 'ph-heart', render: renderReactions },
     { id: 'reviews', label: 'Reviews', icon: 'ph-note-pencil', render: renderReviews },
+    { id: 'comments', label: 'Comments', icon: 'ph-chat-circle-text', render: renderComments, available: has('comments') },
     { id: 'profile', label: 'Profile', icon: 'ph-user', render: renderProfile, available: (m) => !!m.profile },
     { id: 'raw',    label: 'All data', icon: 'ph-database', render: renderRaw },
   ],
   groups: {
     watch:   { label: 'Watch',   icon: 'ph-play-circle', children: ['shows', 'anime', 'movies', 'watch-history', 'diary', 'favorites', 'lists'] },
     ratings: { label: 'Ratings', icon: 'ph-star',        children: ['ratings', 'reactions', 'reviews'] },
+    community: { label: 'Community', icon: 'ph-users-three', children: ['comments'] },
   },
   detail: {
     shows: showDetail,

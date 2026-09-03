@@ -1,3 +1,4 @@
+import { openLightbox } from '../../app/core/media.js';
 import { el } from '../../app/core/util.js';
 import { chip } from '../../app/ui/kit.js';
 
@@ -54,11 +55,33 @@ export const moodChips = (tags) => tags.map(t => (MOOD_EMOJI[t] ? chip(moodText(
 /* -------------------------------------------------------------------
    Review text rendering. Refract reviews use a markdown subset (bold,
    italic, strikethrough, ||inline spoilers||, links, quotes, lists,
-   @mentions). The CSV export flattens newlines to double spaces and
-   strips [media:…] tags, so lines are recovered by splitting on runs of
-   2+ spaces and media never appears.
+   @mentions).
+   Only a real newline breaks a line. The v1 CSV flattened its newlines to
+   runs of spaces, which are left as spaces, so a v1 review renders as one
+   paragraph. v1 also stripped [media:…] tags; v3 keeps them, and the image
+   they name is not in the export. Their uuid does resolve on Refract's CDN,
+   so they load from there and fall back to a marker when it 404s (older or
+   animated uploads do).
    ------------------------------------------------------------------- */
-const INLINE_RE = /\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\|\|(.+?)\|\||\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>]+)|(^|\s)@([\w.-]+)/;
+const INLINE_RE = /\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\|\|(.+?)\|\||\[media:([^\]]+)\]|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>]+)|(^|\s)@([\w.-]+)/;
+
+/* The export names an attached image only by uuid. This path is not documented
+   anywhere; it was derived from the one absolute URL the export does carry
+   (profile.bannerUrl) and confirmed against the CDN, so it is best-effort and
+   the chip stands in whenever it fails. */
+const MEDIA_URL = (id) => `https://cdn.getrefract.app/media/${encodeURIComponent(id)}.jpg`;
+
+function mediaEl(id) {
+  const wrap = el('span', { class: 'cmt-images' });
+  const img = el('img', { class: 'cmt-img', src: MEDIA_URL(id), loading: 'lazy', alt: 'Attached image' });
+  const btn = el('button', {
+    class: 'cmt-img-btn', title: 'View image',
+    onclick: (e) => { e.stopPropagation(); openLightbox(img.currentSrc || img.src); },
+  }, [img]);
+  img.addEventListener('error', () => { btn.replaceWith(chip('Image', { icon: 'ph-image' })); });
+  wrap.append(btn);
+  return wrap;
+}
 
 const link = (href, label) => el('a', { href, target: '_blank', rel: 'noopener noreferrer', text: label });
 
@@ -79,9 +102,10 @@ function inline(text) {
     else if (m[2] != null) nodes.push(el('em', {}, inline(m[2])));
     else if (m[3] != null) nodes.push(el('s', {}, inline(m[3])));
     else if (m[4] != null) nodes.push(spoilerSpan(m[4]));
-    else if (m[5] != null) nodes.push(link(m[6], m[5]));
-    else if (m[7] != null) nodes.push(link(m[7], m[7]));
-    else { if (m[8]) nodes.push(m[8]); nodes.push(el('span', { class: 'mention', text: '@' + m[9] })); }
+    else if (m[5] != null) nodes.push(mediaEl(m[5]));
+    else if (m[6] != null) nodes.push(link(m[7], m[6]));
+    else if (m[8] != null) nodes.push(link(m[8], m[8]));
+    else { if (m[9]) nodes.push(m[9]); nodes.push(el('span', { class: 'mention', text: '@' + m[10] })); }
     rest = rest.slice(m.index + m[0].length);
   }
   return nodes;
@@ -90,7 +114,7 @@ function inline(text) {
 export function reviewText(text, isSpoiler) {
   if (!text) return null;
   const root = el('div', { class: 'review-text' });
-  const lines = text.split(/ {2,}/).map(l => l.trim()).filter(Boolean);
+  const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
   let i = 0;
   const run = (test, make, strip) => {
     const box = make();

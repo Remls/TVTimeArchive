@@ -48,6 +48,7 @@ export function buildV1Model(tables) {
       review: val(r.Review),
       sources: val(r.Source) ? [val(r.Source)] : [],
       reviews: [],
+      comments: [],   // v1 exports carry no comments
       ambiguous: false,
     };
     byExact.set(exactKey, entry);
@@ -105,7 +106,7 @@ export function buildV1Model(tables) {
       const synth = {
         title: val(r.ShowTitle) || t, originalTitle: val(r.ShowOriginalTitle), year: null, type,
         isAnime: type === 'Anime', isMovie: false, countries: semiList(r.ShowCountry),
-        status: '', rating: null, watchedDate: null, review: '', sources: [], reviews: [],
+        status: '', rating: null, watchedDate: null, review: '', sources: [], reviews: [], comments: [],
         ambiguous: false, synthetic: true,
         episodes: new Map(), epWatched: 0, watches: 0, firstWatched: null, lastWatched: null,
       };
@@ -119,7 +120,7 @@ export function buildV1Model(tables) {
     const season = toNum(r.Season), episode = toNum(r.Episode);
     const epKey = season + '|' + episode;
     let ep = show.episodes.get(epKey);
-    if (!ep) { ep = { season, episode, count: 0, dates: [], rating: null }; show.episodes.set(epKey, ep); show.epWatched++; }
+    if (!ep) { ep = { season, episode, count: 0, dates: [], rating: null, comments: [] }; show.episodes.set(epKey, ep); show.epWatched++; }
     ep.count++;
     if (date) ep.dates.push(date);
     if (ratingOf(r.Rating)) ep.rating = ratingOf(r.Rating);
@@ -224,6 +225,6 @@ export function buildV1Model(tables) {
   /* ---- stats for the home view ---- */
   const stats = buildStats({ shows, movies, history, lists, reviews, ratings, reactions });
 
-  // v1 has no diary, favourites or profile sections; their views stay hidden.
-  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary: [], favorites: [], profile: null, stats };
+  // v1 has none of the sections behind the remaining views; they stay hidden.
+  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary: [], favorites: [], comments: [], profile: null, stats };
 }
