@@ -2,7 +2,8 @@
    Global state
    ------------------------------------------------------------------- */
 export const STATE = {
-  tables: {},   // filename -> { fields:[], rows:[] }
+  tables: {},   // filename (CSV) or section name (jsonl) -> { fields:[], rows:[], raw? }
+  manifest: null,   // a manifest-led backup's manifest.json, else null
   model: null,  // derived, curated datasets
   view: 'home',
   listState: {},      // stateKey -> { q, sort, page } preserved across navigation

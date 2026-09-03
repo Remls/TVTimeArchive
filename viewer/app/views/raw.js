@@ -3,7 +3,8 @@ import { $, download, el, fmtInt, norm, toCSV } from '../core/util.js';
 import { buildToolbar, viewHead } from '../ui/kit.js';
 
 export function renderRaw(root) {
-  viewHead(root, 'All data', `${Object.keys(STATE.tables).length} CSV files`);
+  const n = Object.keys(STATE.tables).length;
+  viewHead(root, 'All data', `${n} ${STATE.manifest ? (n === 1 ? 'section' : 'sections') : 'CSV files'}`);
 
   const names = Object.keys(STATE.tables).sort();
   const saved = STATE.listState.raw || {};
@@ -16,7 +17,7 @@ export function renderRaw(root) {
 
   const doExport = (fmt) => {
     const { rows } = computed();
-    const base = state.file.replace('.csv', '') + '-filtered';
+    const base = state.file.replace(/\.(csv|jsonl)$/i, '') + '-filtered';
     if (fmt === 'csv') download(base + '.csv', toCSV(rows), 'text/csv');
     else download(base + '.json', JSON.stringify(rows, null, 2), 'application/json');
   };

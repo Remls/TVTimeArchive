@@ -17,10 +17,26 @@ const kindOf = (type) => (type === 'Movie' ? 'movie' : 'tv');
 
 export const REFRACT_FILES = ['media.csv', 'episodes.csv', 'lists.csv', 'reviews.csv'];
 
-export function buildRefractModel(tables) {
+/* v1 is the four-CSV export, keyed by filename. v3 is the manifest-led backup
+   (formatVersion 3.0), keyed by section name. A later Refract release can add
+   sections without bumping the version, so the section names decide it when
+   the version string is missing or unfamiliar. */
+const V3_SECTIONS = ['library', 'episodes', 'diary', 'ratings', 'list_items'];
+
+export function detectFormat(tables, manifest) {
+  if (manifest && (String(manifest.formatVersion || '').startsWith('3.') || V3_SECTIONS.some(s => tables[s]))) return 'v3';
+  if (REFRACT_FILES.some(f => tables[f])) return 'v1';
+  return null;
+}
+
+export function buildRefractModel(tables, opts = {}) {
   // partial exports are valid: Refract lets you export any subset of its categories
-  if (!REFRACT_FILES.some(f => tables[f])) {
-    throw new Error('This doesn\'t look like a Refract export (none of its CSV files found). TV Time exports load at the site root instead.');
+  const format = detectFormat(tables, opts.manifest);
+  if (!format) {
+    throw new Error('This doesn\'t look like a Refract export. TV Time exports load at the site root instead.');
+  }
+  if (format === 'v3') {
+    throw new Error('This is a Refract 3.0 backup. Reading it is not implemented yet.');
   }
 
   /* ---- media.csv: one entry per row, exact duplicates merged ---- */
