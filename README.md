@@ -57,21 +57,45 @@ visits; "Change source .zip file" in the ⚙ menu forgets it and clears local st
 ## Refract exports
 
 A second viewer at https://tvt.remls.io/refract/ (or `/refract/` on your own copy) reads
-[Refract](https://getrefract.app/) CSV exports. In the Refract app, go to
-Settings > Import & Export > Export as CSV and drop the resulting `.zip` on that page.
+[Refract](https://getrefract.app/) exports. Drop the `.zip` on that page; it reads both
+formats Refract has shipped and picks the right one itself.
 
-Refract exports carry less data than TV Time's, so the view set is smaller: Home, TV Shows,
-Anime, Movies, Watch history, Lists, Ratings, Reactions (mood tags), Reviews, and All data.
-Reviews render Refract's markup (bold, italics, inline spoilers, quotes, lists, links).
+**Backup (format 3.0)**, the current one: in the Refract app, Settings > Import & Export > Refract Export & Backup > Create backup.
+
+**CSV export**, the older one: four flat CSVs. Still read, and worth keeping, because it
+records two things 3.0 dropped (see below).
+
+Which views appear depends on what the export actually contains:
+
+| View | 3.0 | CSV |
+|------|-----|-----|
+| Home, TV Shows, Movies, Watch history, Lists, Ratings, Reactions, Reviews, All data | yes | yes |
+| Anime | no | yes |
+| Diary, Favourites, Profile | yes | no |
+| Comments | with archived sections | no |
+
+Reviews and comments render Refract's markup (bold, italics, inline spoilers, quotes,
+lists, links).
 
 Notes on how the data is interpreted:
 
-- The export has no database ids, so everything joins by title. Show posters and episode
-  titles come from TVmaze by name search, guided by release year when a title exists twice
-  in your library or when a fuzzy match looks wrong.
+- **3.0 joins on ids.** Every row carries the media's Refract, TMDB, IMDb and TheTVDB ids,
+  so nothing is matched by title, and show posters and episode titles come from TVmaze by
+  TheTVDB id. The CSV export has no ids at all: it joins by title and falls back to a
+  TVmaze name search, guided by release year when a title exists twice in your library.
+- **3.0 dropped the country and the anime/TV distinction.** Nothing in it can restore
+  either, so the Anime view only exists for CSV exports. The `favorites` section still
+  tags its own entries, but that covers favourites rather than the whole library.
+- **Rewatches.** 3.0 stores one row per episode with a count rather than one row per watch,
+  so the dates of the repeats are recovered from the diary, which records each one. A few
+  rewatches have no diary entry and so show a count higher than the dates listed.
+- **An episode can be watched with no date**, which the app records under an unknown date
+  rather than dropping it.
 - Refract's database numbers some shows as one continuous season. When TVmaze splits the
   same show into seasons, watched episodes are remapped onto that split (the detail page
   says so when it happens).
+- A section the app doesn't recognise still appears under **All data**, so a future
+  Refract release can add one without this viewer losing it.
 - Both viewers share the TVmaze and Wikidata metadata caches. Each keeps its own copy of
   your export in browser storage; loading one never touches the other.
 
