@@ -27,6 +27,14 @@
   --on-media-rgb:255,255,255; /* white UI sitting on images/scrims */
   --knob:      #fff;      /* switch knob */
   --broken-stroke:#8a5040;/* crack line in the broken-image placeholder (media.js) */
+  /* JSON syntax colours for the All data table. Strings keep --text because
+     they are the payload; the accent stays out of it so it remains the one
+     UI accent. */
+  --j-key:     #d9b380;   /* keys */
+  --j-string:  #f3ede4;   /* strings */
+  --j-num:     #7fb8c9;   /* numbers */
+  --j-lit:     #c98fb8;   /* true / false / null */
+  --j-punct:   #857a68;   /* braces, commas, colons */
   --radius:    14px;
   --radius-sm: 9px;
   --tabbar-h:  60px;
@@ -394,6 +402,41 @@ table.data th {
 table.data th:hover { color: var(--text); }
 table.data tbody tr:hover { background: var(--surface-2); }
 table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Raw rows are ids, timestamps and JSON, so the whole table is monospaced:
+   braces and quoted keys line up down a column. */
+table.data th, table.data td { font-family: 'JetBrains Mono', ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+table.data tr.expandable { cursor: pointer; }
+table.data tr.expandable.open > td { background: var(--surface-2); color: var(--text); }
+
+.j-key { color: var(--j-key); }
+.j-string { color: var(--j-string); }
+.j-num { color: var(--j-num); }
+.j-lit { color: var(--j-lit); }
+.j-punct { color: var(--j-punct); }
+
+/* The row a nested cell opens: full width, and none of the table's clipping. */
+tr.json-row > td { padding: 0; max-width: none; white-space: normal; overflow: visible; background: var(--bg); }
+tr.json-row:hover > td { background: var(--bg); }
+.json-panel { position: sticky; left: 0; border-bottom: 1px solid var(--line); }
+.json-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 7px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line);
+}
+.json-field { color: var(--text-dim); font-size: .78rem; }
+.json-btns { display: flex; gap: 6px; }
+.json-btns button {
+  background: var(--surface); border: 1px solid var(--line); color: var(--text-dim);
+  border-radius: 999px; padding: 4px 11px; font-size: .74rem; white-space: nowrap;
+}
+.json-btns button:hover { color: var(--text); border-color: var(--text-faint); }
+.json-body {
+  max-height: min(60vh, 420px); overflow: auto;
+  padding: 10px 12px; font-size: .8rem; line-height: 1.55; white-space: pre;
+}
+.json-body .fold { cursor: pointer; color: var(--j-punct); }
+.json-body .fold:hover { color: var(--text); }
+.json-body .caret { color: var(--text-faint); margin-right: 3px; vertical-align: -.1em; }
 
 /* ---------- Pagination ---------- */
 .pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; color: var(--text-dim); font-size: .85rem; }
