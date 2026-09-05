@@ -2,7 +2,7 @@
    Global state
    ------------------------------------------------------------------- */
 export const STATE = {
-  tables: {},   // filename (CSV) or section name (jsonl) -> { fields:[], rows:[], raw? }
+  tables: {},   // filename (CSV) or section name (jsonl) -> { fields:[], rows:[] }
   manifest: null,   // a manifest-led backup's manifest.json, else null
   model: null,  // derived, curated datasets
   view: 'home',

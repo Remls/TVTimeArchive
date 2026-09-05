@@ -3,12 +3,12 @@ import { assignSlugs, buildStats } from './shared.js';
 
 /* -------------------------------------------------------------------
    Refract backup format 3.0. One .jsonl section per file, reaching the
-   builder unflattened as tables[section].raw. library.jsonl is the spine
+   builder as parsed rows on tables[section]. library.jsonl is the spine
    and every media reference carries mediaItemId, so nothing joins on a
    title. The export has no country and no anime/TV distinction.
    ------------------------------------------------------------------- */
 
-const rawOf = (tables, section) => (tables[section] || {}).raw || [];
+const rawOf = (tables, section) => (tables[section] || {}).rows || [];
 
 /* Timestamps come two ways. A bare ISO string (lastWatchedAt, createdAt) is
    a real instant. A { local, tz } pair is the wall clock the user recorded,

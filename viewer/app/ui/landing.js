@@ -19,27 +19,12 @@ const entryPath = (entry) => entry.name.replace(/^\.?\//, '');
 const fileEntries = (zip) => Object.values(zip.files).filter(f => !f.dir);
 const readText = async (entry) => (await entry.async('string')).replace(/^\uFEFF/, '');   // strip a UTF-8 BOM (Refract CSVs carry one)
 
-// camelCase -> snake_case, so flattened jsonl columns read like the CSV ones.
-const snake = (s) => s.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
-
-/* The table view wants scalar cells, so nested objects become
-   "item.tmdbId" -> "item_tmdb_id" and arrays are JSON-encoded. */
-function flattenInto(obj, prefix, out) {
-  for (const [k, v] of Object.entries(obj)) {
-    const key = prefix ? prefix + '_' + snake(k) : snake(k);
-    if (v && typeof v === 'object' && !Array.isArray(v)) flattenInto(v, key, out);
-    else out[key] = Array.isArray(v) ? JSON.stringify(v) : (v == null ? '' : v);
-  }
-  return out;
-}
-const hasNested = (o) => Object.values(o).some(v => v && typeof v === 'object');
-
-/* One table from a .jsonl section. `rows` are flattened for display and
-   export; `raw` keeps the parsed objects, which is what the models read.
-   Fields accumulate across rows in first-seen order: sections like ratings
-   carry `item` as an object on some rows and null on others. */
+/* One table from a .jsonl section: the rows stay as parsed, nesting intact,
+   and the fields are their top-level keys. Fields accumulate in first-seen
+   order across rows, since sections like ratings carry `item` as an object
+   on some rows and null on others. */
 function jsonlTable(text) {
-  const raw = [], rows = [], fields = [];
+  const rows = [], fields = [];
   const seen = new Set();
   let malformed = 0;
   for (const line of text.split('\n')) {
@@ -47,12 +32,10 @@ function jsonlTable(text) {
     if (!s) continue;
     let obj;
     try { obj = JSON.parse(s); } catch { malformed++; continue; }
-    raw.push(obj);
-    const flat = hasNested(obj) ? flattenInto(obj, '', {}) : obj;
-    rows.push(flat);
-    for (const f of Object.keys(flat)) if (!seen.has(f)) { seen.add(f); fields.push(f); }
+    rows.push(obj);
+    for (const f of Object.keys(obj)) if (!seen.has(f)) { seen.add(f); fields.push(f); }
   }
-  return { fields, rows, raw, malformed };
+  return { fields, rows, malformed };
 }
 
 /* Refract 3.0: manifest.json names every section and its file, so a section
