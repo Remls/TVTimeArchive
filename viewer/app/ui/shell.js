@@ -1,6 +1,7 @@
 import { APP, activeViews } from '../core/app.js';
 import { Enrichment, MovieMeta } from '../core/enrich.js';
 import { avatarEl } from '../core/media.js';
+import * as Prefs from '../core/prefs.js';
 import { STATE, UI } from '../core/state.js';
 import { Backup } from '../core/storage.js';
 import { $, el, fmtInt } from '../core/util.js';
@@ -146,7 +147,7 @@ export function buildSettingsMenu() {
   toggleItem.addEventListener('click', (e) => {
     e.stopPropagation();
     Enrichment.enabled = !Enrichment.enabled;
-    try { localStorage.setItem('tvt.enrich', Enrichment.enabled ? '1' : '0'); } catch {}
+    Prefs.set('autoLoad', { shows: Enrichment.enabled });
     sw.classList.toggle('on', Enrichment.enabled);
     refresh();
   });
@@ -158,7 +159,7 @@ export function buildSettingsMenu() {
   movieToggle.addEventListener('click', (e) => {
     e.stopPropagation();
     MovieMeta.enabled = !MovieMeta.enabled;
-    try { localStorage.setItem('tvt.movies', MovieMeta.enabled ? '1' : '0'); } catch {}
+    Prefs.set('autoLoad', { movies: MovieMeta.enabled });
     msw.classList.toggle('on', MovieMeta.enabled);
     refresh();
   });

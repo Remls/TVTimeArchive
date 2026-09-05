@@ -1,5 +1,6 @@
 import { APP } from '../core/app.js';
 import { Enrichment, MovieMeta } from '../core/enrich.js';
+import * as Prefs from '../core/prefs.js';
 import { STATE, UI } from '../core/state.js';
 import { $, el } from '../core/util.js';
 import { applyState, hashToState, navigate } from './router.js';
@@ -153,8 +154,9 @@ export function showChooser() {
 }
 
 export function initLanding() {
-  try { Enrichment.enabled = localStorage.getItem('tvt.enrich') === '1'; } catch {}
-  try { MovieMeta.enabled = localStorage.getItem('tvt.movies') === '1'; } catch {}
+  const autoLoad = Prefs.get('autoLoad');
+  Enrichment.enabled = autoLoad.shows === true;
+  MovieMeta.enabled = autoLoad.movies === true;
   const input = $('#fileInput');
   const dz = $('#dropzone');
   input.addEventListener('change', () => { if (input.files[0]) loadArchive(input.files[0]); });
