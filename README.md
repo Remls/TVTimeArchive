@@ -198,6 +198,11 @@ Static site, no build step. `netlify.toml` publishes the `viewer/` folder as-is;
 any static host works. The Refract viewer ships from the same folder, at `viewer/refract/`.
 Keep your own exports out of the published folder and out of git.
 
+The two social preview images are the exception: they are committed as PNGs but
+authored as `og-image.svg` and `og-image-refract.svg`. After editing either, run
+`./og-images.sh` to re-render both. It drives headless Chrome so the text picks up
+the same web fonts the site loads; set `CHROME` if yours is not in the usual place.
+
 ## License
 
 [MIT](LICENSE).

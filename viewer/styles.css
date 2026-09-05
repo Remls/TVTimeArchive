@@ -62,7 +62,7 @@ code { font-family: 'JetBrains Mono', ui-monospace, "SF Mono", Menlo, Consolas, 
 button { font-family: inherit; cursor: pointer; }
 
 /* Display face, headings & big numerals (by selector, so markup is untouched) */
-.brand h1, .brand-rail, .view-head h2, .section-title,
+.brand h1, .view-head h2, .section-title,
 .stat-value, .detail-hero-text h2, .dz-title {
   font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif;
   letter-spacing: -.02em;
@@ -126,7 +126,6 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ---------- App shell ---------- */
 .app { min-height: 100dvh; }
-.brand-rail { display: none; }   /* desktop-only; hidden on mobile (shown in wide media query) */
 
 .topbar {
   position: sticky; top: 0; z-index: 20;
@@ -639,7 +638,7 @@ details.season[open] > summary .season-caret { transform: rotate(90deg); }
    =================================================================== */
 @media (min-width: 860px) {
   :root { --topbar-h: 60px; }
-  .app { display: grid; grid-template-columns: 232px 1fr; grid-template-rows: auto 1fr; grid-template-areas: "brandbar topbar" "sidebar main"; min-height: 100dvh; }
+  .app { display: grid; grid-template-columns: 232px 1fr; grid-template-rows: auto 1fr; grid-template-areas: "sidebar topbar" "sidebar main"; min-height: 100dvh; }
   .topbar { grid-area: topbar; }
   .view-root { grid-area: main; padding: 20px 24px 40px; }
   .profile-hero { margin: -20px -24px 12px; min-height: 360px; }
@@ -670,7 +669,6 @@ details.season[open] > summary .season-caret { transform: rotate(90deg); }
   .tabbar .subnav-item.active { background: var(--surface-2); }
   /* Pin "All data" (the last tab) to the bottom of the sidebar. */
   .tabbar > .tab:last-child { margin-top: auto; }
-  .brand-rail { grid-area: brandbar; display: flex; align-items: center; gap: 10px; padding: 0 18px; height: var(--topbar-h); border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); background: var(--surface); font-weight: 700; }
 
   .stat-grid { grid-template-columns: repeat(4, 1fr); }
   .global-search { width: 260px; }

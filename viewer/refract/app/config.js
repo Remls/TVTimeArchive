@@ -23,7 +23,6 @@ const hasAnime = (model) => model.shows.some(s => s.isAnime);
 const has = (key) => (model) => (model[key] || []).length > 0;
 
 export const REFRACT_APP = {
-  brand: { title: 'Refract Archive' },
   views: [
     { id: 'home',   label: 'Home',   icon: 'ph-house', render: renderHome },
     // Watch group
@@ -65,5 +64,5 @@ export const REFRACT_APP = {
     dropped:     ['warn', 'Dropped'],
   },
   settingsExtras: null,
-  crossLink: { label: 'Open TV Time Archive', href: '../' },
+  crossLink: { label: 'Open TV Time Archive Viewer', href: '../' },
 };

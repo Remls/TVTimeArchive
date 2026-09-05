@@ -89,7 +89,6 @@ function settingsExtras({ makeClear, refresh }) {
 }
 
 export const TVTIME_APP = {
-  brand: { title: 'TV Time Archive' },
   views: VIEWS,
   groups: GROUPS,
   detail: {
@@ -111,5 +110,5 @@ export const TVTIME_APP = {
     watchlist: ['accent', 'Watchlist'], watched: ['good', 'Watched'], rated: ['warn', 'Rated'],
   },
   settingsExtras,
-  crossLink: { label: 'Open Refract Archive', href: 'refract/' },
+  crossLink: { label: 'Open Refract Archive Viewer', href: 'refract/' },
 };

@@ -7,7 +7,6 @@
 import { STATE } from './state.js';
 
 export const APP = {
-  brand: { title: '' },
   views: [],     // [{ id, label, icon, render, available?(model), fallback? }]
   groups: {},    // groupId -> { label, icon, children:[viewId] } (children contiguous in views)
   groupOf: {},   // viewId -> groupId (derived)

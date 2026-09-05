@@ -19,6 +19,6 @@
           fill="#7c8cff" transform="translate(32 36.7) scale(0.6) translate(-32 -37)"/>
   </g>
 
-  <text x="600" y="689" text-anchor="middle" font-family="Bricolage Grotesque, Helvetica, Arial, sans-serif" font-size="92" font-weight="800" fill="#e9edf5" letter-spacing="-2">Refract Archive</text>
+  <text x="600" y="689" text-anchor="middle" font-family="Bricolage Grotesque, Helvetica, Arial, sans-serif" font-size="92" font-weight="800" fill="#e9edf5" letter-spacing="-2">Refract Archive Viewer</text>
   <text x="600" y="734" text-anchor="middle" font-family="Instrument Sans, Helvetica, Arial, sans-serif" font-size="32" font-weight="500" fill="#9aa3b5">Browse your Refract data export locally in your browser.</text>
 </svg>

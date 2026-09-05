@@ -10,11 +10,6 @@ import { showChooser } from './landing.js';
 import { applyState, hashToState, navigate } from './router.js';
 
 export function buildChrome() {
-  // desktop brand rail (inserted once)
-  if (!$('.brand-rail')) {
-    const rail = el('div', { class: 'brand-rail' }, [el('img', { class: 'brand-mark small', src: 'favicon.svg', alt: '', width: 22, height: 22 }), APP.brand.title]);
-    $('#app').prepend(rail);
-  }
   const bar = $('#tabbar');
   bar.innerHTML = '';
   const prof = STATE.model && STATE.model.profile;
