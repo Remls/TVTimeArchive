@@ -20,7 +20,11 @@ function historyItem(ev) {
     el('div', { class: 'item-title', text: ev.type === 'movie' && !ev.ref.titleWasExplicit ? movieTitle(ev.title) : ev.title }),
     el('div', { class: 'item-meta' }, [
       el('span', { text: sub }),
-      el('span', { text: fmtDate(ev.date) }),
+      el('span', {
+        class: ev.userSetDate ? 'hand-set' : null,
+        title: ev.userSetDate ? 'Date set by hand' : null,
+        html: fmtDate(ev.date) + (ev.userSetDate ? '<i class="ph ph-pencil-simple hand-set-mark"></i>' : ''),
+      }),
     ]),
   ]));
   kids.push(el('div', { class: 'item-right' }, [

@@ -49,8 +49,8 @@ const rewatchPayload = (notes) => {
 };
 
 function rewatchDates(tables) {
-  const byEpisode = new Map();   // "mediaItemId|season|episode" -> [Date]
-  const byMovie = new Map();     // mediaItemId -> [Date]
+  const byEpisode = new Map();   // "mediaItemId|season|episode" -> [{ at, userSet }]
+  const byMovie = new Map();     // mediaItemId -> [{ at, userSet }]
   for (const r of rawOf(tables, 'diary')) {
     const p = rewatchPayload(r.notes);
     if (!p) continue;
@@ -61,7 +61,9 @@ function rewatchDates(tables) {
       ? [byEpisode, `${p.mediaItemId}|${c.seasonNumber}|${c.episodeNumber}`]
       : [byMovie, p.mediaItemId];
     if (!into[0].has(into[1])) into[0].set(into[1], []);
-    into[0].get(into[1]).push(date);
+    // The diary row says whether its date was picked by hand; the watch it
+    // describes inherits that, so the accordion and history can mark it.
+    into[0].get(into[1]).push({ at: date, userSet: r.userSetDate === true });
   }
   return { byEpisode, byMovie };
 }
@@ -131,12 +133,15 @@ export function buildV3Model(tables, manifest) {
     const season = r.seasonNumber ?? 0, episode = r.episodeNumber ?? 0;
     const epKey = season + '|' + episode;
     let ep = show.episodes.get(epKey);
-    if (!ep) { ep = { season, episode, count: 0, dates: [], rating: null, comments: [] }; show.episodes.set(epKey, ep); show.epWatched++; }
+    if (!ep) { ep = { season, episode, count: 0, dates: [], handSet: new Set(), rating: null, comments: [] }; show.episodes.set(epKey, ep); show.epWatched++; }
     ep.count += 1 + (r.rewatchCount || 0);
     ep.rating = numOr(r.rating) || ep.rating;
     const first = stampOf(r.watchedAt);   // null on an episode marked watched without a date
     if (first) ep.dates.push(first);
-    for (const d of rewatch.byEpisode.get(`${item.mediaItemId}|${season}|${episode}`) || []) ep.dates.push(d);
+    for (const d of rewatch.byEpisode.get(`${item.mediaItemId}|${season}|${episode}`) || []) {
+      ep.dates.push(d.at);
+      if (d.userSet) ep.handSet.add(d.at.getTime());
+    }
     ep.dates.sort((a, b) => a - b);
     show.watches += 1 + (r.rewatchCount || 0);
     epByTmdbSE.set(`${item.tmdbId}|${season}|${episode}`, { show, ep });
@@ -270,13 +275,15 @@ export function buildV3Model(tables, manifest) {
       ep.dates.forEach((date, i) => {
         if (!s.firstWatched || date < s.firstWatched) s.firstWatched = date;
         if (!s.lastWatched || date > s.lastWatched) s.lastWatched = date;
-        history.push({ ...base, rewatch: i > 0, date, ts: date.getTime() });
+        history.push({ ...base, rewatch: i > 0, date, ts: date.getTime(), userSetDate: ep.handSet.has(date.getTime()) });
       });
     }
   }
   for (const m of movies) {
-    const dates = (m.watchedDate ? [m.watchedDate] : []).concat(rewatch.byMovie.get(m.mediaItemId) || []).sort((a, b) => a - b);
-    dates.forEach((date, i) => history.push({ type: 'movie', title: m.title, ref: m, rewatch: i > 0, date, ts: date.getTime(), rating: m.rating }));
+    const dates = (m.watchedDate ? [{ at: m.watchedDate, userSet: false }] : [])
+      .concat(rewatch.byMovie.get(m.mediaItemId) || [])
+      .sort((a, b) => a.at - b.at);
+    dates.forEach((d, i) => history.push({ type: 'movie', title: m.title, ref: m, rewatch: i > 0, date: d.at, ts: d.at.getTime(), rating: m.rating, userSetDate: d.userSet }));
   }
   history.sort((a, b) => b.ts - a.ts);
 
@@ -347,6 +354,7 @@ export function buildV3Model(tables, manifest) {
       rating: numOr(r.rating),
       note,
       imported: !!r.imported,
+      userSetDate: r.userSetDate === true,   // the date was picked by hand rather than recorded
       date: stampOf(r.actionDate) || parseDate(r.occurredAt),
     });
   }

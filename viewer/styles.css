@@ -278,6 +278,9 @@ a.menu-item { text-decoration: none; }
 .profile-hero-name { font-weight: 800; font-size: 1.9rem; letter-spacing: -.02em; text-shadow: 0 3px 16px rgba(var(--shadow-rgb),.75); }
 .profile-hero-sub { color: var(--text-dim); font-size: 1rem; text-shadow: 0 2px 12px rgba(var(--shadow-rgb),.75); }
 
+/* A watch date the user picked by hand rather than one the app recorded. */
+.hand-set-mark { color: var(--text-faint); margin-left: 4px; vertical-align: -.08em; font-size: .9em; }
+
 /* ---------- Yearly goals (Home) ---------- */
 .goal-list { display: flex; flex-direction: column; gap: 10px; }
 .goal { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }

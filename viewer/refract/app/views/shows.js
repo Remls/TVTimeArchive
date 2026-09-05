@@ -205,7 +205,12 @@ function renderSeasons(container, show, epMap, imgMap, imgFullMap) {
         el('div', { class: 'ep-body' }, [
           el('div', { class: 'ep-num', text: `S${pad2(s)}E${pad2(e)}` }),
           el('div', { class: 'ep-title' + (w ? '' : ' unseen'), text: seasons[s][e] || `Episode ${e}` }),
-          dates.length ? el('div', { class: 'ep-dates' }, dates.map((d, i) => el('span', { html: `<i class="ph ${i === 0 ? 'ph-play' : 'ph-arrow-clockwise'}"></i>${fmtDate(d)}` }))) : null,
+          dates.length ? el('div', { class: 'ep-dates' }, dates.map((d, i) => el('span', {
+            class: w.handSet.has(d.getTime()) ? 'hand-set' : null,
+            title: w.handSet.has(d.getTime()) ? 'Date set by hand' : null,
+            html: `<i class="ph ${i === 0 ? 'ph-play' : 'ph-arrow-clockwise'}"></i>${fmtDate(d)}`
+              + (w.handSet.has(d.getTime()) ? '<i class="ph ph-pencil-simple hand-set-mark"></i>' : ''),
+          }))) : null,
           w && w.rating ? el('div', { class: 'ep-rating' }, [rating10(w.rating)]) : null,
           ...((w && w.comments) || []).map(c => commentCard(c, { compact: true })),
         ]),

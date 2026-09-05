@@ -48,6 +48,7 @@ export function renderDiary(root) {
             d.note ? el('span', { text: d.note }) : null,
             d.date ? el('span', { text: fmtDate(d.date) }) : null,
             d.imported ? el('span', { text: 'imported' }) : null,
+            d.userSetDate ? el('span', { text: 'date set by hand' }) : null,
           ]),
         ]),
         el('div', { class: 'item-right' }, [

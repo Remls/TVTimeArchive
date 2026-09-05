@@ -120,7 +120,7 @@ export function buildV1Model(tables) {
     const season = toNum(r.Season), episode = toNum(r.Episode);
     const epKey = season + '|' + episode;
     let ep = show.episodes.get(epKey);
-    if (!ep) { ep = { season, episode, count: 0, dates: [], rating: null, comments: [] }; show.episodes.set(epKey, ep); show.epWatched++; }
+    if (!ep) { ep = { season, episode, count: 0, dates: [], handSet: new Set(), rating: null, comments: [] }; show.episodes.set(epKey, ep); show.epWatched++; }
     ep.count++;
     if (date) ep.dates.push(date);
     if (ratingOf(r.Rating)) ep.rating = ratingOf(r.Rating);
