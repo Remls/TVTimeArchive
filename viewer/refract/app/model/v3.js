@@ -19,17 +19,17 @@ function stampOf(v, mode) {
   return v.local ? parseDate(v.local, mode) : null;
 }
 
-/* `tz` names the device's zone and never describes `local`. Measured against
-   the row's createdAt, which is a real UTC instant, `local` holds UTC on native
-   watches and on diary `episode` and `rated` rows, and the device wall clock on
-   diary `added` and `completed`. The action type is the only signal the export
-   carries and it is not unanimous: a few `completed` rows hold UTC and read an
-   offset early. Imported rows can't be measured at all, since their createdAt
-   is the import, so they keep the wall-clock reading. Re-derive the table
-   against createdAt if a later export changes shape. */
-const DIARY_MODE = { added: 'wall', completed: 'wall', episode: 'utc', rated: 'utc' };
-const diaryMode = (r) => (r.imported ? 'wall' : DIARY_MODE[r.actionType] || 'wall');
-const nativeMode = (r) => (r.imported ? 'wall' : 'utc');
+/* Which of a diary row's two timestamps to trust. `createdAt` is a real UTC
+   instant, but only of when the row was written; `actionDate.local` is naive,
+   and its `tz` does not describe it. A row Refract recorded itself was written
+   as it happened, so `createdAt` is the moment. Rows carried over by the TV
+   Time import all share the import's `createdAt`, and a `rated` row is
+   rewritten on each new rating without touching it, so those two read
+   `actionDate` as UTC instead. */
+function diaryDate(r) {
+  if (r.imported || r.actionType === 'rated') return stampOf(r.actionDate) || parseDate(r.occurredAt);
+  return parseDate(r.createdAt) || stampOf(r.actionDate);
+}
 
 const numOr = (v) => (typeof v === 'number' && v > 0 ? v : null);   // 0 and null both mean unknown
 
@@ -63,11 +63,7 @@ function rewatchDates(tables) {
   for (const r of rawOf(tables, 'diary')) {
     const p = rewatchPayload(r.notes);
     if (!p) continue;
-    // watchedDate ends in Z, but its digits equal the same row's naive
-    // actionDate.local on every snapshot in the exports checked, so the zone is
-    // false. Read the wall clock and ignore it, or the rewatch date lands offset
-    // from the diary entry it came from.
-    const date = parseDate(p.watchedDate, 'wall');
+    const date = parseDate(p.watchedDate);
     if (!date || !p.mediaItemId) continue;
     const c = p.episodeComposite;
     const into = (c && c.seasonNumber != null && c.episodeNumber != null)
@@ -154,7 +150,7 @@ export function buildV3Model(tables, manifest) {
     ep.count += 1 + (r.rewatchCount || 0);
     ep.runtime = Math.max(ep.runtime, numOr(r.runtimeMinutes) || 0);
     ep.rating = numOr(r.rating) || ep.rating;
-    const first = stampOf(r.watchedAt, nativeMode(r));   // null on an episode marked watched without a date
+    const first = stampOf(r.watchedAt);   // null on an episode marked watched without a date
     if (first) ep.dates.push(first);
     for (const d of rewatch.byEpisode.get(`${item.mediaItemId}|${season}|${episode}`) || []) {
       ep.dates.push(d.at);
@@ -196,17 +192,17 @@ export function buildV3Model(tables, manifest) {
       season: hit && hit.ep ? hit.ep.season : (r.seasonNumber ?? null),
       episode: hit && hit.ep ? hit.ep.episode : (r.episodeNumber ?? null),
       rating: numOr(r.value),
-      date: parseDate(r.createdAt) || stampOf(r.completedOn, nativeMode(r)),
-      completedOn: stampOf(r.completedOn, nativeMode(r)),
+      date: parseDate(r.createdAt) || stampOf(r.completedOn),
+      completedOn: stampOf(r.completedOn),
       moodTags: r.moodTags || [],
       watchContext: r.watchContext || [],
       visibility: r.visibility || '',
       source: r.source || '',
       ep: hit && hit.ep,
     };
-    /* The TV Time migration re-recorded ratings that already existed natively:
-       a "gdpr-ep-…" legacy_import row beside a refract row for the same
-       episode and the same value. Keep the native one. */
+    /* The TV Time migration re-recorded ratings Refract already had: a
+       "gdpr-ep-…" legacy_import row beside a refract row for the same episode
+       and the same value. Keep Refract's own. */
     const key = target
       ? (entry.kind === 'episode' ? `${target.mediaItemId}|${entry.season}|${entry.episode}` : target.mediaItemId)
       : entry.targetKey;
@@ -373,7 +369,7 @@ export function buildV3Model(tables, manifest) {
       note,
       imported: !!r.imported,
       userSetDate: r.userSetDate === true,   // the date was picked by hand rather than recorded
-      date: stampOf(r.actionDate, diaryMode(r)) || parseDate(r.occurredAt),
+      date: diaryDate(r),
     });
   }
   diary.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
