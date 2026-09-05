@@ -208,6 +208,14 @@ a.menu-item { text-decoration: none; }
 .badge-tiers { color: var(--text-dim); font-size: .82rem; margin-top: 4px; display: grid; gap: 2px; }
 .badge-tier { display: flex; gap: 10px; }
 .badge-tier-n { font-weight: 600; min-width: 68px; }
+.smart-note { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; margin: 0 14px 14px; }
+.smart-head { display: flex; align-items: center; gap: 7px; font-weight: 600; font-size: .88rem; margin-bottom: 6px; }
+.smart-note p { color: var(--text-dim); font-size: .84rem; line-height: 1.55; margin: 0 0 10px; }
+.smart-note p:last-child { margin-bottom: 0; }
+.rule-list { display: grid; gap: 4px; }
+.rule-row { display: flex; gap: 10px; font-size: .86rem; }
+.rule-key { color: var(--text-dim); min-width: 76px; flex: 0 0 auto; }
+.rule-val { color: var(--text); font-weight: 600; }
 .item-ico { flex: 0 0 auto; align-self: center; width: 34px; display: grid; place-items: center; font-size: 1.5rem; color: var(--text-faint); }
 .menu-head { color: var(--text-faint); font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; padding: 8px 10px 4px; }
 .menu-val { color: var(--text-dim); font-size: .84rem; margin-left: auto; }

@@ -320,6 +320,8 @@ export function buildV3Model(tables, manifest) {
       isPublic: !!r.isPublic,
       visibility: r.visibility || '',
       isSmartList: !!r.isSmartList,
+      // The rule a smart list is built from. Its members are not exported.
+      smartFilters: r.isSmartList && r.smartFilters && typeof r.smartFilters === 'object' ? r.smartFilters : null,
       isOrdered: !!r.isOrdered,
       sortOrder: r.sortOrder ?? 0,
       items: [],

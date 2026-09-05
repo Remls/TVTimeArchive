@@ -203,7 +203,7 @@ export function buildV1Model(tables) {
     const name = val(r.ListName);
     if (!name) continue;
     if (!listsByName.has(name)) {
-      listsByName.set(name, { name, description: val(r.Description), isPublic: val(r.IsPublic) === 'true', items: [] });
+      listsByName.set(name, { name, description: val(r.Description), isPublic: val(r.IsPublic) === 'true', isSmartList: false, smartFilters: null, items: [] });
     }
     const list = listsByName.get(name);
     if (!list.description && val(r.Description)) list.description = val(r.Description);
