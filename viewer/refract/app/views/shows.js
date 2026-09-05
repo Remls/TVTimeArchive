@@ -38,7 +38,7 @@ export function showsGallery(root, { viewId, title, items, exportName }) {
     renderItem: (s) => posterCard({
       kind: 'show', kindIcon: kindIcon(s), title: s.title, year: metaYear(s), seriesId: seriesIdOf(s),
       secondary: s.originalTitle && s.originalTitle !== s.title ? s.originalTitle : null,
-      status: s.status, rating: s.rating,
+      status: s.status, rating: s.rating, progress: s.progress,
       sub: [s.year, s.epWatched ? `${fmtInt(s.epWatched)} episodes watched` : null].filter(Boolean).join(', ') || null,
       onClick: () => navigate({ view: viewId, detail: s.slug }),
     }),
@@ -72,6 +72,7 @@ export function openShowDetail(show) {
     title: show.title, kind: 'show', kindIcon: kindIcon(show),
     subKids: [
       el('span', { html: `<b>${fmtInt(show.epWatched || 0)}</b> episodes watched` }),
+      show.progress != null ? el('span', { text: `${Math.round(show.progress)}% through` }) : null,
       show.year ? el('span', { text: String(show.year) }) : null,
       show.countries.length ? el('span', { text: countryNames(show.countries) }) : null,
       rating10(show.rating),

@@ -105,6 +105,12 @@ export function posterCard(opts = {}) {
       ]) : null,
     ]));
   }
+  // A part-way bar across the foot of the art; callers pass 0-100 or nothing.
+  if (opts.progress != null) {
+    art.append(el('div', { class: 'poster-card-progress', title: `${Math.round(opts.progress)}% watched` }, [
+      el('div', { class: 'poster-card-progress-fill', style: `width:${Math.max(2, Math.min(100, opts.progress))}%` }),
+    ]));
+  }
   const info = [el('div', { class: 'poster-card-title', text: opts.title })];
   if (opts.secondary) info.push(el('div', { class: 'poster-card-secondary', text: opts.secondary }));
   if (opts.sub) info.push(el('div', { class: 'poster-card-sub', text: opts.sub }));

@@ -98,6 +98,7 @@ function entryOf(item) {
     countries: [],           // v3 dropped the country column
     status: '',
     rating: null,
+    progress: null,          // Refract's own percentage, 0-100
     watchedDate: null,
     review: '',
     sources: [],
@@ -117,6 +118,9 @@ export function buildV3Model(tables, manifest) {
     const entry = entryOf(item);
     entry.status = r.status || '';
     entry.rating = numOr(r.rating);
+    // Only a part-way show says anything: movies are 0 or 100, and a finished
+    // show repeats what its status already says.
+    if (typeof r.progressPercent === 'number' && r.progressPercent > 0 && r.progressPercent < 100) entry.progress = r.progressPercent;
     entry.watchedDate = stampOf(r.lastWatchedAt);   // a bare ISO instant
     entry.sources = r.source ? [r.source] : [];
     byId.set(entry.mediaItemId, entry);

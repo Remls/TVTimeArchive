@@ -482,6 +482,8 @@ tr.json-row:hover > td { background: var(--bg); }
 .poster-card-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .poster-card-icon { font-size: 2.2rem; color: var(--text-faint); opacity: .5; }
 .poster-card.clickable:hover .poster-card-art { border-color: var(--accent); }
+.poster-card-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(var(--shadow-rgb), .55); }
+.poster-card-progress-fill { height: 100%; background: var(--accent); }
 .poster-card-top {
   position: absolute; top: 6px; left: 6px; right: 6px;
   display: flex; justify-content: space-between; align-items: flex-start;
