@@ -1,5 +1,6 @@
 import { APP, activeViews } from '../core/app.js';
 import { Enrichment, MovieMeta } from '../core/enrich.js';
+import * as Dates from '../core/dates.js';
 import { avatarEl } from '../core/media.js';
 import * as Prefs from '../core/prefs.js';
 import { STATE, UI } from '../core/state.js';
@@ -165,6 +166,72 @@ export function buildSettingsMenu() {
   });
   const movieNote = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-warning-circle' }), el('span', { text: 'This data is fetched from the Wikidata API, and may not be accurate.' })]);
 
+  /* Date & time. The three pickers and two switches are all editors of the two
+     stored patterns, so any change rebuilds the whole block: flipping the
+     weekday restates every date sample, and so on. */
+  const fmtBox = el('div', {});
+  let openFmt = null;
+  function buildFormat() {
+    fmtBox.innerHTML = '';
+    const c = Dates.formatChoice();
+    const dateAs = (preset, weekday, fullYear) => Dates.fmtSample(Dates.composeDate(preset, weekday, fullYear));
+    const timeAs = (preset, seconds) => Dates.fmtSample(Dates.composeTime(preset, seconds));
+    const apply = (patch) => { Dates.setTimestampFormat(patch); buildFormat(); refresh(); };
+    const NO_WEEKDAY = Dates.WEEKDAYS[0];
+
+    const picker = (key, label, value, options) => {
+      const wrap = el('div', { class: 'menu-sub-wrap' });
+      const head = el('button', { class: 'menu-item' }, [
+        el('span', { text: label }),
+        el('span', { class: 'menu-val fmt-sample', text: value }),
+        el('i', { class: 'ph ph-caret-right menu-caret' + (openFmt === key ? ' open' : '') }),
+      ]);
+      head.addEventListener('click', (e) => { e.stopPropagation(); openFmt = openFmt === key ? null : key; buildFormat(); });
+      wrap.append(head);
+      if (openFmt === key) {
+        const sub = el('div', { class: 'menu-sub' });
+        for (const o of options) {
+          const item = el('button', { class: 'menu-item sub fmt-sample' + (o.active ? ' active' : ''), text: o.text });
+          item.addEventListener('click', (e) => { e.stopPropagation(); o.choose(); });
+          sub.append(item);
+        }
+        wrap.append(sub);
+      }
+      return wrap;
+    };
+
+    const switchRow = (label, on, toggle) => {
+      const item = el('button', { class: 'menu-item' }, [el('span', { text: label }), el('span', { class: 'switch' + (on ? ' on' : '') })]);
+      item.addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
+      return item;
+    };
+
+    fmtBox.append(
+      el('div', { class: 'menu-head', text: 'Date & time' }),
+      picker('weekday', 'Weekday', c.weekday.token ? Dates.fmtSample(c.weekday.token) : 'None', Dates.WEEKDAYS.map(w => ({
+        text: w.token ? dateAs(c.datePreset, w, c.fullYear) : 'None', active: w === c.weekday,
+        choose: () => apply({ date: Dates.composeDate(c.datePreset, w, c.fullYear) }),
+      }))),
+      // The date samples leave the weekday off: it has its own row, and the
+      // note at the bottom is where the whole thing is shown together.
+      picker('date', 'Date format', dateAs(c.datePreset, NO_WEEKDAY, c.fullYear), Dates.DATE_PRESETS.map(p => ({
+        text: dateAs(p, NO_WEEKDAY, c.fullYear), active: p === c.datePreset,
+        choose: () => apply({ date: Dates.composeDate(p, c.weekday, c.fullYear) }),
+      }))),
+      switchRow('Show full year', c.fullYear, () => apply({ date: Dates.composeDate(c.datePreset, c.weekday, !c.fullYear) })),
+      picker('time', 'Time format', timeAs(c.timePreset, c.seconds), Dates.TIME_PRESETS.map(p => ({
+        text: timeAs(p, c.seconds), active: p === c.timePreset,
+        choose: () => apply({ time: Dates.composeTime(p, c.seconds) }),
+      }))),
+      switchRow('Show seconds', c.seconds, () => apply({ time: Dates.composeTime(c.timePreset, !c.seconds) })),
+      el('div', { class: 'menu-note' }, [
+        el('i', { class: 'ph ph-clock' }),
+        el('span', { class: 'fmt-sample', text: Dates.fmtDate(Dates.SAMPLE, { time: true }) }),
+      ]),
+    );
+  }
+  buildFormat();
+
   // Umbrella "Clear cache…", expands to per-cache clears, each confirm-gated.
   const clearWrap = el('div', { class: 'menu-sub-wrap' });
   const clearToggle = el('button', { class: 'menu-item' }, [el('span', { text: 'Clear cache…' }), el('i', { class: 'ph ph-caret-right menu-caret' })]);
@@ -206,7 +273,7 @@ export function buildSettingsMenu() {
   pop.append(toggleItem, note, sep(), movieToggle, movieNote);
   const extraItems = (extras && extras.items) || [];
   if (extraItems.length) pop.append(sep(), ...extraItems);
-  pop.append(sep(), clearWrap, sep(), changeItem);
+  pop.append(sep(), fmtBox, sep(), clearWrap, sep(), changeItem);
   if (APP.crossLink) {
     // new tab so an installed PWA doesn't render the sibling app inside its own window
     pop.append(sep(), el('a', { class: 'menu-item', href: APP.crossLink.href, target: '_blank' }, [
