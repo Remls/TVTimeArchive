@@ -468,5 +468,23 @@ export function buildV3Model(tables, manifest) {
   /* ---- stats for the home view ---- */
   const stats = buildStats({ shows, movies, history, lists, reviews, ratings, reactions });
 
-  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary, favorites, comments, profile, goals, stats };
+  /* ---- posts.jsonl: challenges. One row per join and per completion, both
+     carrying the whole challenge, so they fold into one entry per id. ---- */
+  const challengeById = new Map();
+  for (const r of rawOf(tables, 'posts')) {
+    const m = r.metadata || {};
+    if (!m.challengeId) continue;
+    let c = challengeById.get(m.challengeId);
+    if (!c) {
+      c = { id: m.challengeId, title: m.title || m.challengeId, icon: m.icon || '', color: m.themeColor || '', joinedAt: null, completedAt: null };
+      challengeById.set(c.id, c);
+    }
+    const at = parseDate(r.createdAt);
+    if (r.eventType === 'challenge_joined') c.joinedAt = at;
+    else if (r.eventType === 'challenge_completed') c.completedAt = at;
+  }
+  const challenges = [...challengeById.values()]
+    .sort((a, b) => (b.completedAt || b.joinedAt || 0) - (a.completedAt || a.joinedAt || 0));
+
+  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary, favorites, comments, profile, goals, challenges, stats };
 }

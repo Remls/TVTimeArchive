@@ -205,6 +205,7 @@ a.menu-item { text-decoration: none; }
 .menu-note a, .menu-note a:visited { color: var(--accent); text-decoration: none; font-weight: 600; }
 .menu-note a:hover { text-decoration: underline; }
 .menu-sep { height: 1px; background: var(--line); margin: 4px 6px; }
+.challenge-ico { font-size: 1.5rem; flex: 0 0 auto; display: grid; place-items: center; width: 34px; }
 .menu-head { color: var(--text-faint); font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; padding: 8px 10px 4px; }
 .menu-val { color: var(--text-dim); font-size: .84rem; margin-left: auto; }
 .fmt-sample { font-variant-numeric: tabular-nums; }
