@@ -58,7 +58,7 @@ export function openMovieDetail(mv) {
     subKids: [
       mv.year ? el('span', { text: String(mv.year) }) : null,
       mv.countries.length ? el('span', { text: countryNames(mv.countries) }) : null,
-      mv.watchedDate ? el('span', { html: `<i class="ph ph-play"></i> ${fmtDate(mv.watchedDate)}` }) : null,
+      mv.watchedDate ? el('span', { html: `<i class="ph ph-play"></i> ${fmtDate(mv.watchedDate, { time: true })}` }) : null,
       rating10(mv.rating),
       statusBadge(mv.status),
     ],

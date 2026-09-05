@@ -23,7 +23,7 @@ function historyItem(ev) {
       el('span', {
         class: ev.userSetDate ? 'hand-set' : null,
         title: ev.userSetDate ? 'Date set by hand' : null,
-        html: fmtDate(ev.date) + (ev.userSetDate ? '<i class="ph ph-pencil-simple hand-set-mark"></i>' : ''),
+        html: fmtDate(ev.date, { time: true }) + (ev.userSetDate ? '<i class="ph ph-pencil-simple hand-set-mark"></i>' : ''),
       }),
     ]),
   ]));

@@ -2,7 +2,7 @@ import { LEVEL_LABEL, reactionChipText } from '../core/decode.js';
 import { Enrichment } from '../core/enrich.js';
 import { avatarEl, zoomImg } from '../core/media.js';
 import { STATE } from '../core/state.js';
-import { $, el, fmtDate, fmtDateTime, fmtInt, norm, slugify } from '../core/util.js';
+import { $, el, fmtDate, fmtInt, norm, slugify } from '../core/util.js';
 import { detailScaffold, emptyState, listView, posterCard, ratingChip, starRating, statusBadge } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 import { commentCard } from './comments.js';
@@ -181,7 +181,7 @@ export function renderSeasons(container, datesByEp, epMap, imgMap, reactsByEp, i
         el('div', { class: 'ep-body' }, [
           el('div', { class: 'ep-num', text: numTxt }),
           el('div', { class: 'ep-title' + (c ? '' : ' unseen'), text: seasons[s][e] || `Episode ${e}` }),
-          c ? el('div', { class: 'ep-dates' }, dates.map((d, i) => el('span', { html: `<i class="ph ${i === 0 ? 'ph-play' : 'ph-arrow-clockwise'}"></i>${fmtDateTime(d)}` }))) : null,
+          c ? el('div', { class: 'ep-dates' }, dates.map((d, i) => el('span', { html: `<i class="ph ${i === 0 ? 'ph-play' : 'ph-arrow-clockwise'}"></i>${fmtDate(d, { time: true })}` }))) : null,
           (ratingByEp && ratingByEp[`${s}|${e}`]) ? el('div', { class: 'ep-rating', title: `${ratingByEp[`${s}|${e}`].label} (${ratingByEp[`${s}|${e}`].stars}/5)` }, [starRating(ratingByEp[`${s}|${e}`].stars)]) : null,
           (reactsByEp && reactsByEp[`${s}|${e}`]) ? el('div', { class: 'ep-reactions', text: [...reactsByEp[`${s}|${e}`]].join(', ') }) : null,
           ...((commentsByEp && commentsByEp[`${s}|${e}`]) || []).map(cm => commentCard(cm, { compact: true })),

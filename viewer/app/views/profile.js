@@ -1,6 +1,6 @@
 import { avatarEl } from '../core/media.js';
 import { STATE } from '../core/state.js';
-import { $, el, fmtDate, fmtDateTime, nonEmpty } from '../core/util.js';
+import { $, el, fmtDate, nonEmpty } from '../core/util.js';
 
 export function renderProfile(root) {
   const p = STATE.model.profile;
@@ -20,7 +20,7 @@ export function renderProfile(root) {
   root.append(el('div', { class: 'section-title', text: 'Account details' }));
   const rows = [
     ['Name', p.name], ['Username', p.username], ['Email', p.email], ['Language', p.language], ['Timezone', p.timezone],
-    ['Member since', fmtDate(p.createdAt)], ['Last opened', fmtDateTime(p.lastOpened)],
+    ['Member since', fmtDate(p.createdAt)], ['Last opened', fmtDate(p.lastOpened, { time: true })],
     ['Days active', p.daysActive], ['Weeks active', p.weeksActive], ['Months active', p.monthsActive],
   ].filter(([, v]) => nonEmpty(v) && v !== '-');
   const dl = el('dl', { class: 'kv' });

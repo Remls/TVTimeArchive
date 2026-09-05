@@ -95,7 +95,7 @@ export function renderProfile(root) {
 
   const b = p.backup;
   section(root, 'This backup', [
-    ['Created', b && b.generatedAt ? fmtDate(b.generatedAt) : null],
+    ['Created', b && b.generatedAt ? fmtDate(b.generatedAt, { time: true }) : null],
     ['Format version', b && b.formatVersion],
     ['Sections', b && b.sections],
     ['Includes archived sections', b ? yesNo(b.includeArchived) : null],

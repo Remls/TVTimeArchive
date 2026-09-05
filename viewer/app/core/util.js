@@ -26,6 +26,8 @@ export const nonEmpty = (v) => v !== undefined && v !== null && String(v).trim()
 
 export const truncate = (s, n) => { s = (s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 
+const DATE_ONLY = new WeakSet();   // dates parsed from a string that carried no time of day
+
 export function parseDate(s) {
   if (!s) return null;
   s = String(s);
@@ -37,14 +39,25 @@ export function parseDate(s) {
   if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
   // Date-only value (no time): keep it as a local calendar date so the day never shifts.
   const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (m2) return new Date(+m2[1], +m2[2] - 1, +m2[3]);
+  if (m2) { const d = new Date(+m2[1], +m2[2] - 1, +m2[3]); DATE_ONLY.add(d); return d; }
   const d = new Date(s);
   return isNaN(d) ? null : d;
 }
 
-export const fmtDate = (d) => d ? d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const pad2 = (n) => String(n).padStart(2, '0');
 
-export const fmtDateTime = (d) => d ? d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-';
+/* The one date renderer: `11 Sep 2026` by default, `11 Sep 2026, 02:34:56pm`
+   with { time: true }. Built by hand rather than through toLocaleString so the
+   shape is the same in every locale. A value that came out of a date-only
+   string has no clock to print, so it stays date-only whatever the caller asks. */
+export function fmtDate(d, { time = false } = {}) {
+  if (!d) return '-';
+  const day = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  if (!time || DATE_ONLY.has(d)) return day;
+  const h = d.getHours();
+  return `${day}, ${pad2(h % 12 || 12)}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}${h < 12 ? 'am' : 'pm'}`;
+}
 
 export const fmtInt = (n) => (n || 0).toLocaleString();
 

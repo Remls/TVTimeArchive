@@ -56,7 +56,7 @@ export function commentCard(c, opts = {}) {
     if (nav) target.addEventListener('click', () => opts.onNav(nav));
     head.push(target);
   }
-  head.push(el('span', { class: 'cmt-date', text: fmtDate(c.date) + (c.editedAt ? ' (edited)' : '') }));
+  head.push(el('span', { class: 'cmt-date', text: fmtDate(c.date, { time: true }) + (c.editedAt ? ' (edited)' : '') }));
 
   const kids = [el('div', { class: 'cmt-head' }, head)];
   // Marked even in the compact view, so a reply is never mistaken for a comment.

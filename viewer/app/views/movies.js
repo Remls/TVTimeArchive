@@ -1,6 +1,6 @@
 import { movieTitle } from '../core/enrich.js';
 import { STATE } from '../core/state.js';
-import { $, el, fmtDateTime, fmtDuration, fmtInt, norm, slugify } from '../core/util.js';
+import { $, el, fmtDate, fmtDuration, fmtInt, norm, slugify } from '../core/util.js';
 import { chip, detailScaffold, listView, posterCard, ratingChip, statusBadge } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 import { commentCard } from './comments.js';
@@ -61,7 +61,7 @@ export function openMovieDetail(mv) {
   if (mv.watchDates.length) {
     section('Watch history');
     body.append(el('div', { class: 'detail-dates' }, mv.watchDates.map((d, i) =>
-      el('span', { class: 'detail-date', html: `<i class="ph ${i === 0 ? 'ph-play' : 'ph-arrow-clockwise'}"></i>${fmtDateTime(d)}` }))));
+      el('span', { class: 'detail-date', html: `<i class="ph ${i === 0 ? 'ph-play' : 'ph-arrow-clockwise'}"></i>${fmtDate(d, { time: true })}` }))));
   }
 
   if (mv.reactions.length) {

@@ -75,7 +75,7 @@ export function commentCard(e, opts = {}) {
     if (nav) targetEl.addEventListener('click', () => navigate(nav));
     head.push(targetEl);
   }
-  head.push(el('span', { class: 'cmt-date', text: fmtDate(e.date) }));
+  head.push(el('span', { class: 'cmt-date', text: fmtDate(e.date, { time: true }) }));
 
   const kids = [el('div', { class: 'cmt-head' }, head)];
 

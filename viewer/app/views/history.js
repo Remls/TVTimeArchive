@@ -1,7 +1,7 @@
 import { Enrichment, MovieMeta, movieTitle } from '../core/enrich.js';
 import { zoomImg } from '../core/media.js';
 import { STATE } from '../core/state.js';
-import { $, download, el, fmtDate, fmtDateTime, fmtDuration, fmtInt, norm, toCSV } from '../core/util.js';
+import { $, download, el, fmtDate, fmtDuration, fmtInt, norm, toCSV } from '../core/util.js';
 import { buildToolbar, entityNav, menuSelect, viewHead } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 
@@ -23,7 +23,7 @@ export function historyItem(ev) {
     el('div', { class: 'item-meta' }, [
       el('span', { text: sub }),
       ev.runtime ? el('span', { text: fmtDuration(ev.runtime) }) : null,
-      el('span', { text: fmtDateTime(ev.date) }),
+      el('span', { text: fmtDate(ev.date, { time: true }) }),
     ]),
   ]));
   kids.push(el('div', { class: 'item-right' }, [

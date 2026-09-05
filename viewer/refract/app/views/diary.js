@@ -46,7 +46,7 @@ export function renderDiary(root) {
           el('div', { class: 'item-meta' }, [
             el('span', { text: d.label }),
             d.note ? el('span', { text: d.note }) : null,
-            d.date ? el('span', { text: fmtDate(d.date) }) : null,
+            d.date ? el('span', { text: fmtDate(d.date, { time: true }) }) : null,
             d.imported ? el('span', { text: 'imported' }) : null,
             d.userSetDate ? el('span', { text: 'date set by hand' }) : null,
           ]),

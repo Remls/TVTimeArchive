@@ -42,7 +42,7 @@ export function renderNotifications(root) {
       }
       kids.push(el('div', { class: 'item-main' }, [
         el('div', { class: 'notif-text', text: n.text || '-' }),
-        el('div', { class: 'item-meta' }, [n.date ? el('span', { text: fmtDate(n.date) }) : null]),
+        el('div', { class: 'item-meta' }, [n.date ? el('span', { text: fmtDate(n.date, { time: true }) }) : null]),
       ]));
       kids.push(el('div', { class: 'item-right' }, [
         el('span', { class: 'badge ' + (NOTIF_BADGE_CLASS[n.cat] || ''), text: NOTIF_CAT_LABEL[n.cat] || n.cat }),

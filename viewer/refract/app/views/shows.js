@@ -208,7 +208,7 @@ function renderSeasons(container, show, epMap, imgMap, imgFullMap) {
           dates.length ? el('div', { class: 'ep-dates' }, dates.map((d, i) => el('span', {
             class: w.handSet.has(d.getTime()) ? 'hand-set' : null,
             title: w.handSet.has(d.getTime()) ? 'Date set by hand' : null,
-            html: `<i class="ph ${i === 0 ? 'ph-play' : 'ph-arrow-clockwise'}"></i>${fmtDate(d)}`
+            html: `<i class="ph ${i === 0 ? 'ph-play' : 'ph-arrow-clockwise'}"></i>${fmtDate(d, { time: true })}`
               + (w.handSet.has(d.getTime()) ? '<i class="ph ph-pencil-simple hand-set-mark"></i>' : ''),
           }))) : null,
           w && w.rating ? el('div', { class: 'ep-rating' }, [rating10(w.rating)]) : null,
