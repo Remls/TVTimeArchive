@@ -1,5 +1,5 @@
 import { configureApp } from './core/app.js';
-import { TVTIME_APP } from './tvtime.js';
+import { TVTIME_APP } from './config.js';
 import { initLanding } from './ui/landing.js';
 
 configureApp(TVTIME_APP);

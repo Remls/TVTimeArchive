@@ -2,7 +2,7 @@ import { Enrichment } from './core/enrich.js';
 import { STATE } from './core/state.js';
 import { Backup, Extended, IDB } from './core/storage.js';
 import { el, fmtInt, norm, slugify } from './core/util.js';
-import { buildModel, refreshExtended } from './model/model.js';
+import { buildModel, refreshExtended } from './model.js';
 import { renderBadges } from './views/badges.js';
 import { renderCharacters } from './views/characters.js';
 import { pickBackup, renderComments } from './views/comments.js';

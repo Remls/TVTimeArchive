@@ -2,7 +2,7 @@ import { avatarEl, resilientImg } from '../core/media.js';
 import { STATE } from '../core/state.js';
 import { fmtDate } from '../core/dates.js';
 import { $, el, fmtInt } from '../core/util.js';
-import { NOTIF_CAT_LABEL } from '../model/model.js';
+import { NOTIF_CAT_LABEL } from '../model.js';
 import { emptyState, listView, viewHead } from '../ui/kit.js';
 
 export const NOTIF_BADGE_CLASS = { follow: 'accent', mention: 'accent', badge: 'warn', airing: 'good' };

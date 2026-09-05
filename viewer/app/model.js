@@ -1,9 +1,9 @@
-import { EMOTION_LABELS, LEVEL_LABEL, OLD_EMOTION_RATING, RATING_LABELS, reactionChipText, reactionIdFromKey } from '../core/decode.js';
-import { notifImageRef } from '../core/media.js';
-import { STATE, T } from '../core/state.js';
-import { Extended } from '../core/storage.js';
-import { parseDate } from '../core/dates.js';
-import { $, nonEmpty, norm, slugify, toNum } from '../core/util.js';
+import { EMOTION_LABELS, LEVEL_LABEL, OLD_EMOTION_RATING, RATING_LABELS, reactionChipText, reactionIdFromKey } from './core/decode.js';
+import { notifImageRef } from './core/media.js';
+import { STATE, T } from './core/state.js';
+import { Extended } from './core/storage.js';
+import { parseDate } from './core/dates.js';
+import { $, nonEmpty, norm, slugify, toNum } from './core/util.js';
 
 export function buildModel(tables) {
   const m = {};

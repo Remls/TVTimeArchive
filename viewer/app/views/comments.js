@@ -3,7 +3,7 @@ import { STATE } from '../core/state.js';
 import { Backup } from '../core/storage.js';
 import { fmtDate } from '../core/dates.js';
 import { $, el, fmtInt, truncate } from '../core/util.js';
-import { refreshExtended } from '../model/model.js';
+import { refreshExtended } from '../model.js';
 import { backupNote, entityNav, listView } from '../ui/kit.js';
 import { navigate, renderView } from '../ui/router.js';
 import { pad2 } from './shows.js';
