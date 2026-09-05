@@ -226,5 +226,5 @@ export function buildV1Model(tables) {
   const stats = buildStats({ shows, movies, history, lists, reviews, ratings, reactions });
 
   // v1 has none of the sections behind the remaining views; they stay hidden.
-  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary: [], favorites: [], comments: [], profile: null, stats };
+  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary: [], favorites: [], comments: [], profile: null, goals: [], stats };
 }

@@ -32,6 +32,23 @@ export function renderHome(root) {
   }
   root.append(grid);
 
+  /* Yearly goals, newest first. `achieved` is Refract's own counter, shown as
+     exported rather than recomputed from the archive. */
+  if (m.goals.length) {
+    root.append(el('div', { class: 'section-title', text: m.goals.length === 1 ? 'Yearly goal' : 'Yearly goals' }));
+    root.append(el('div', { class: 'goal-list' }, m.goals.map(g => {
+      const pct = g.target > 0 ? Math.min(100, Math.round((g.achieved || 0) / g.target * 100)) : 0;
+      return el('div', { class: 'goal' }, [
+        el('div', { class: 'goal-head' }, [
+          el('span', { class: 'goal-year', text: String(g.year ?? '-') }),
+          el('span', { class: 'goal-count', text: `${fmtInt(g.achieved || 0)} of ${fmtInt(g.target || 0)}` }),
+          g.completedAt ? el('span', { class: 'goal-done', text: 'reached ' + fmtDate(g.completedAt) }) : null,
+        ]),
+        el('div', { class: 'goal-bar' }, [el('div', { class: 'goal-fill' + (pct >= 100 ? ' complete' : ''), style: `width:${pct}%` })]),
+      ]);
+    })));
+  }
+
   root.append(el('div', { class: 'section-title', text: 'Most-watched shows' }));
   const top = [...m.shows].sort((a, b) => b.epWatched - a.epWatched).filter(s => s.epWatched > 0).slice(0, 8);
   const gallery = el('div', { class: 'poster-gallery' });

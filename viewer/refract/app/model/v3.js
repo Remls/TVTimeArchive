@@ -420,7 +420,10 @@ export function buildV3Model(tables, manifest) {
      resolved here. avatarUrl is a path on Refract's own server rather than a
      URL, so there is nothing to load and the view falls back to an initial. ---- */
   const raw = rawOf(tables, 'profile')[0] || null;
-  const goal = rawOf(tables, 'yearly_goals')[0] || null;
+  /* One row per year, so this grows rather than being a single setting. */
+  const goals = rawOf(tables, 'yearly_goals')
+    .map(g => ({ ...g, completedAt: parseDate(g.completedAt) }))
+    .sort((a, b) => (b.year || 0) - (a.year || 0));
   const profile = raw && {
     ...raw,
     displayName: raw.displayName || raw.username || '',
@@ -428,7 +431,6 @@ export function buildV3Model(tables, manifest) {
     avatar: /^https?:\/\//.test(raw.avatarUrl || '') ? raw.avatarUrl : '',
     banner: /^https?:\/\//.test(raw.bannerUrl || '') ? raw.bannerUrl : '',
     featuredList: (listById.get(raw.featuredListId) || {}).name || '',
-    yearlyGoal: goal && { ...goal, completedAt: parseDate(goal.completedAt) },
     backup: manifest ? {
       generatedAt: parseDate(manifest.generatedAt),
       formatVersion: manifest.formatVersion || '',
@@ -440,5 +442,5 @@ export function buildV3Model(tables, manifest) {
   /* ---- stats for the home view ---- */
   const stats = buildStats({ shows, movies, history, lists, reviews, ratings, reactions });
 
-  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary, favorites, comments, profile, stats };
+  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary, favorites, comments, profile, goals, stats };
 }

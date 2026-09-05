@@ -48,7 +48,6 @@ export function renderProfile(root) {
     ['Profile visible to', p.profileVisibility ? humanizeTag(p.profileVisibility) : null],
   ]);
 
-  const g = p.yearlyGoal;
   section(root, 'Refract', [
     // Cosmetic ids, shown verbatim: the export carries no display names for them.
     ['Equipped title', p.equippedTitle],
@@ -56,8 +55,9 @@ export function renderProfile(root) {
     ['Equipped frame', p.equippedFrame],
     ['Featured list', p.featuredList],
     ['Home layout', p.homeLayout ? humanizeTag(p.homeLayout) : null],
-    ['Yearly goal', g ? `${fmtInt(g.achieved || 0)} of ${fmtInt(g.target || 0)} for ${g.year}` : (p.yearlyGoalTarget ? fmtInt(p.yearlyGoalTarget) : null)],
-    ['Goal completed', g && g.completedAt ? fmtDate(g.completedAt) : null],
+    ['Home sections', listOf((p.homeSectionLayout || {}).order)],
+    ['Hidden sections', listOf((p.homeSectionLayout || {}).hidden)],
+    ['Name colour', (p.nameStyle || {}).colorId],
   ]);
 
   section(root, 'Preferences', [
