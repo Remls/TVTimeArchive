@@ -5,7 +5,7 @@ import { fmtDate } from '../../../app/core/dates.js';
 import { $, el, fmtInt } from '../../../app/core/util.js';
 import { detailScaffold, emptyState, listView, posterCard, statusBadge } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
-import { commentCard, countryNames, enrichItem, kindIcon, metaYear, moodChips, rating10, reviewText, seriesIdOf, tagChips } from '../kit.js';
+import { artworkNote, commentCard, countryNames, enrichItem, kindIcon, metaYear, moodChips, rating10, reviewText, seriesIdOf, tagChips } from '../kit.js';
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
@@ -36,7 +36,7 @@ export function showsGallery(root, { viewId, title, items, exportName }) {
       { id: 'az', label: 'Alphabetical', fn: (a, b) => a.title.localeCompare(b.title) },
     ],
     renderItem: (s) => posterCard({
-      kind: 'show', kindIcon: kindIcon(s), title: s.title, year: metaYear(s), seriesId: seriesIdOf(s),
+      kind: 'show', kindIcon: kindIcon(s), title: s.title, year: metaYear(s), seriesId: seriesIdOf(s), poster: s.poster,
       secondary: s.originalTitle && s.originalTitle !== s.title ? s.originalTitle : null,
       status: s.status, rating: s.rating, progress: s.progress,
       sub: [s.year, s.epWatched ? `${fmtInt(s.epWatched)} episodes watched` : null].filter(Boolean).join(', ') || null,
@@ -83,6 +83,7 @@ export function openShowDetail(show) {
   if (show.originalTitle && show.originalTitle !== show.title) {
     body.append(el('div', { class: 'detail-orig', text: show.originalTitle }));
   }
+  if (show.poster) body.append(artworkNote());
   if (show.ambiguous) {
     body.append(el('div', { class: 'enrich-note' }, [
       el('i', { class: 'ph ph-warning-circle' }),
@@ -107,7 +108,8 @@ export function openShowDetail(show) {
   const render = (epMap, failed) => {
     host.innerHTML = '';
     const v = Enrichment.getCached(key);
-    setPoster(v && v.img, v && (v.imgO || v.img));
+    if (show.poster) setPoster(show.poster, show.poster);
+    else setPoster(v && v.img, v && (v.imgO || v.img));
     const note = el('div', { class: 'enrich-note' });
     if (epMap) {
       note.append(el('span', { text: 'Episodes from TVmaze.' }));

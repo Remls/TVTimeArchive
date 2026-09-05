@@ -62,7 +62,7 @@ export function renderHome(root) {
   const gallery = el('div', { class: 'poster-gallery' });
   for (const s of top) {
     gallery.append(posterCard({
-      kind: 'show', kindIcon: kindIcon(s), title: s.title, year: metaYear(s), seriesId: seriesIdOf(s), status: s.status, rating: s.rating,
+      kind: 'show', kindIcon: kindIcon(s), title: s.title, year: metaYear(s), seriesId: seriesIdOf(s), poster: s.poster, status: s.status, rating: s.rating,
       sub: `${fmtInt(s.epWatched)} episodes`,
       onClick: () => navigate({ view: s.isAnime ? 'anime' : 'shows', detail: s.slug }),
     }));

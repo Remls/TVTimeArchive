@@ -48,6 +48,7 @@ export function buildV1Model(tables) {
       progress: null,   // v1 carries no progress column
       watchedDate: parseDate(val(r.WatchedDate)),
       review: val(r.Review),
+      poster: '',   // v1 carries no artwork overrides
       sources: val(r.Source) ? [val(r.Source)] : [],
       reviews: [],
       comments: [],   // v1 exports carry no comments
@@ -108,7 +109,7 @@ export function buildV1Model(tables) {
       const synth = {
         title: val(r.ShowTitle) || t, originalTitle: val(r.ShowOriginalTitle), year: null, type,
         isAnime: type === 'Anime', isMovie: false, countries: semiList(r.ShowCountry),
-        status: '', rating: null, progress: null, watchedDate: null, review: '', sources: [], reviews: [], comments: [],
+        status: '', rating: null, progress: null, watchedDate: null, review: '', poster: '', sources: [], reviews: [], comments: [],
         ambiguous: false, synthetic: true,
         episodes: new Map(), epWatched: 0, watches: 0, firstWatched: null, lastWatched: null,
       };

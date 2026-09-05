@@ -16,6 +16,7 @@ export const APP = {
   beforeModel: null,  // () -> void, before buildModel
   afterModel: null,   // async (model) -> void, after buildModel
   statuses: {},       // status -> [badgeClass, label] for kit.statusBadge
+  artworkNote: null,  // { settings, item } attribution when the export names its own poster art
   settingsExtras: null, // ({ makeClear, refresh }) -> { items:[], clears:[] } | null
   crossLink: null,    // { label, href } -> settings entry that opens the sibling viewer
 };

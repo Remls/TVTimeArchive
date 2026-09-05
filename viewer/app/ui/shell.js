@@ -160,6 +160,9 @@ export function buildSettingsMenu() {
     refresh();
   });
   const movieNote = el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-warning-circle' }), el('span', { text: 'This data is fetched from the Wikidata API, and may not be accurate.' })]);
+  // No toggle: an override is a poster the archive names outright, so it is
+  // shown whether or not metadata lookups are on.
+  const artNote = APP.artworkNote ? el('div', { class: 'menu-note' }, [el('i', { class: 'ph ph-info' }), el('span', { text: APP.artworkNote.settings })]) : null;
 
   /* Date & time. The three pickers and two switches are all editors of the two
      stored patterns, so any change rebuilds the whole block: flipping the
@@ -266,6 +269,7 @@ export function buildSettingsMenu() {
   });
 
   pop.append(toggleItem, note, sep(), movieToggle, movieNote);
+  if (artNote) pop.append(sep(), artNote);
   const extraItems = (extras && extras.items) || [];
   if (extraItems.length) pop.append(sep(), ...extraItems);
   pop.append(sep(), fmtBox, sep(), clearWrap, sep(), changeItem);

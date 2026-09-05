@@ -65,7 +65,7 @@ export function renderLists(root) {
       if (m && !m.isMovie) posterItems.push(enrichItem(m));
       const card = posterCard({
         kind: m && m.isMovie ? 'movie' : 'show', kindIcon: kindIcon(m),
-        title: m ? m.title : it.title, year: metaYear(m), seriesId: seriesIdOf(m),
+        title: m ? m.title : it.title, year: metaYear(m), seriesId: seriesIdOf(m), poster: m ? m.poster : '',
         sub: [it.year || (m && m.year), it.note].filter(Boolean).join(', '),
         onClick: m ? () => navigate({ view: m.isMovie ? 'movies' : (m.isAnime ? 'anime' : 'shows'), detail: m.slug }) : null,
       });

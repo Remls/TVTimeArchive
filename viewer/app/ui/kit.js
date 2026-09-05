@@ -90,7 +90,9 @@ export function posterCard(opts = {}) {
   const art = el('div', { class: 'poster-card-art' }, [
     el('i', { class: 'ph ' + (opts.kindIcon || (kind === 'movie' ? 'ph-film-slate' : 'ph-television')) + ' poster-card-icon' }),
   ]);
-  if (kind === 'show' && Enrichment.enabled) {
+  // A poster the archive names outright beats anything a lookup would find.
+  if (opts.poster) art.append(el('img', { src: opts.poster, loading: 'lazy', alt: '' }));
+  else if (kind === 'show' && Enrichment.enabled) {
     const url = Enrichment.posterFor(opts.title, opts.seriesId, opts.year);
     if (url) art.append(el('img', { src: url, loading: 'lazy', alt: '' }));
     else art.dataset.poster = Enrichment.resolveKey(opts.title, opts.seriesId, opts.year);

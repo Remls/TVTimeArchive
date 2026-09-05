@@ -10,6 +10,8 @@ import { assignSlugs, buildStats } from './shared.js';
 
 const rawOf = (tables, section) => (tables[section] || {}).rows || [];
 
+const TMDB_POSTER = 'https://image.tmdb.org/t/p/w342';
+
 /* Timestamps come two ways. A bare ISO string (lastWatchedAt, createdAt) is a
    real instant. A { local, tz } pair needs the caller to say how `local` reads,
    because Refract is not consistent about it. */
@@ -97,6 +99,7 @@ function entryOf(item) {
     progress: null,          // Refract's own percentage, 0-100
     watchedDate: null,
     review: '',
+    poster: '',              // a poster you picked yourself, from artwork_overrides
     sources: [],
     reviews: [],
     comments: [],
@@ -121,6 +124,16 @@ export function buildV3Model(tables, manifest) {
     entry.sources = r.source ? [r.source] : [];
     byId.set(entry.mediaItemId, entry);
     media.push(entry);
+  }
+
+  /* ---- artwork_overrides.jsonl: a poster you chose in place of the default.
+     `posterPath` is a TMDB path, and their image host needs no key, so the URL
+     is built here and used ahead of anything TVmaze would return. A row with a
+     seasonNumber overrides that season's art, which no view shows yet. ---- */
+  for (const r of rawOf(tables, 'artwork_overrides')) {
+    const entry = byId.get((r.item || {}).mediaItemId);
+    if (!entry || r.seasonNumber != null || !r.posterPath) continue;
+    entry.poster = TMDB_POSTER + r.posterPath;
   }
 
   const shows = media.filter(m => !m.isMovie);

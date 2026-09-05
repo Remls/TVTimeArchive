@@ -67,6 +67,10 @@ export const REFRACT_APP = {
     on_hold:     ['warn', 'On hold'],
     dropped:     ['warn', 'Dropped'],
   },
+  artworkNote: {
+    settings: 'If you edited the poster of any show/movie in Refract, that poster is fetched from TMDB.',
+    item: 'This poster was edited by you in Refract, and is being fetched from TMDB.',
+  },
   settingsExtras: null,
   crossLink: { label: 'Open TV Time Archive Viewer', href: '../' },
 };

@@ -4,7 +4,7 @@ import { fmtDate } from '../../../app/core/dates.js';
 import { $, el, fmtInt } from '../../../app/core/util.js';
 import { detailScaffold, listView, posterCard, statusBadge } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
-import { commentCard, countryNames, rating10 } from '../kit.js';
+import { artworkNote, commentCard, countryNames, rating10 } from '../kit.js';
 import { reviewCard } from './shows.js';
 
 // English display title: the export's own Title when present, else a cached
@@ -34,7 +34,7 @@ export function renderMovies(root) {
     renderItem: (mv) => {
       const en = displayTitle(mv);
       return posterCard({
-        kind: 'movie', title: en,
+        kind: 'movie', title: en, poster: mv.poster,
         secondary: en !== mv.originalTitle && mv.originalTitle ? mv.originalTitle : null,
         status: mv.status, rating: mv.rating,
         sub: mv.year ? String(mv.year) : null,
@@ -54,7 +54,7 @@ export function renderMovies(root) {
 export function openMovieDetail(mv) {
   STATE.pendingScroll = { key: 'movies', y: window.scrollY || window.pageYOffset || 0 };
   const en = displayTitle(mv);
-  const { body } = detailScaffold($('#viewRoot'), {
+  const { body, setPoster } = detailScaffold($('#viewRoot'), {
     title: en, kind: 'movie',
     subKids: [
       mv.year ? el('span', { text: String(mv.year) }) : null,
@@ -65,7 +65,9 @@ export function openMovieDetail(mv) {
     ],
   });
 
+  if (mv.poster) setPoster(mv.poster, mv.poster);
   if (mv.originalTitle && mv.originalTitle !== en) body.append(el('div', { class: 'detail-orig', text: mv.originalTitle }));
+  if (mv.poster) body.append(artworkNote());
 
   if (mv.reviews.length) {
     body.append(el('div', { class: 'section-title', text: mv.reviews.length === 1 ? '1 review' : `${fmtInt(mv.reviews.length)} reviews` }));

@@ -171,6 +171,12 @@ only a show or movie name to the API when enabled:
 - **Movie titles**, English titles for localized names via
   [Wikidata](https://www.wikidata.org).
 
+Refract exports can also name their own artwork. If you replaced a poster in
+Refract, the export carries a [TMDB](https://www.themoviedb.org) path for it and
+the viewer loads that image in place of the default. There is no toggle, because
+the poster is your own choice and is present in the export data. This app is not
+endorsed, certified, or otherwise approved by TMDB.
+
 ## Notes on the data
 
 - **Ratings vs reactions.** TV Time reused numeric IDs across many versioned "sets"

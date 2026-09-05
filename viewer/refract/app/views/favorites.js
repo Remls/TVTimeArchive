@@ -26,7 +26,7 @@ export function renderFavorites(root) {
       const m = f.target;
       return posterCard({
         kind: f.kind === 'movie' ? 'movie' : 'show', kindIcon: kindIcon(m),
-        title: f.title, year: metaYear(m), seriesId: seriesIdOf(m),
+        title: f.title, year: metaYear(m), seriesId: seriesIdOf(m), poster: m ? m.poster : '',
         secondary: m && m.originalTitle && m.originalTitle !== f.title ? m.originalTitle : null,
         status: m ? m.status : '', rating: m ? m.rating : null,
         sub: m && m.year ? String(m.year) : null,

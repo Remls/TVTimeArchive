@@ -1,3 +1,4 @@
+import { APP } from '../../app/core/app.js';
 import { openLightbox } from '../../app/core/media.js';
 import { fmtDate } from '../../app/core/dates.js';
 import { el, truncate } from '../../app/core/util.js';
@@ -19,6 +20,11 @@ export const enrichItem = (m) => ({ seriesId: seriesIdOf(m), title: m.title, yea
 
 // null defers to the caller's default (the TV icon)
 export const kindIcon = (m) => (m && m.isAnime ? 'ph-flower-lotus' : null);
+
+// Shown on a detail page whose poster came from artwork_overrides.
+export const artworkNote = () => (APP.artworkNote
+  ? el('div', { class: 'enrich-note' }, [el('i', { class: 'ph ph-info' }), el('span', { text: APP.artworkNote.item })])
+  : null);
 
 /* Refract names its icons after its own set (badges and challenges both use
    it); these are the Phosphor equivalents. An unmapped name falls back rather
