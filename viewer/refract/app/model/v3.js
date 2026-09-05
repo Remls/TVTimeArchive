@@ -10,17 +10,26 @@ import { assignSlugs, buildStats } from './shared.js';
 
 const rawOf = (tables, section) => (tables[section] || {}).rows || [];
 
-/* Timestamps come two ways. A bare ISO string (lastWatchedAt, createdAt) is
-   a real instant. A { local, tz } pair is the wall clock the user recorded,
-   so `local` is read as a local calendar time: parseDate would treat a naive
-   timestamp as UTC and shift the day for anyone outside that zone. */
-function stampOf(v) {
+/* Timestamps come two ways. A bare ISO string (lastWatchedAt, createdAt) is a
+   real instant. A { local, tz } pair needs the caller to say how `local` reads,
+   because Refract is not consistent about it. */
+function stampOf(v, mode) {
   if (!v) return null;
-  if (typeof v === 'string') return parseDate(v);
-  if (!v.local) return null;
-  const m = String(v.local).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
-  return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) : parseDate(v.local);
+  if (typeof v === 'string') return parseDate(v, mode);
+  return v.local ? parseDate(v.local, mode) : null;
 }
+
+/* `tz` names the device's zone and never describes `local`. Measured against
+   the row's createdAt, which is a real UTC instant, `local` holds UTC on native
+   watches and on diary `episode` and `rated` rows, and the device wall clock on
+   diary `added` and `completed`. The action type is the only signal the export
+   carries and it is not unanimous: a few `completed` rows hold UTC and read an
+   offset early. Imported rows can't be measured at all, since their createdAt
+   is the import, so they keep the wall-clock reading. Re-derive the table
+   against createdAt if a later export changes shape. */
+const DIARY_MODE = { added: 'wall', completed: 'wall', episode: 'utc', rated: 'utc' };
+const diaryMode = (r) => (r.imported ? 'wall' : DIARY_MODE[r.actionType] || 'wall');
+const nativeMode = (r) => (r.imported ? 'wall' : 'utc');
 
 const numOr = (v) => (typeof v === 'number' && v > 0 ? v : null);   // 0 and null both mean unknown
 
@@ -54,7 +63,11 @@ function rewatchDates(tables) {
   for (const r of rawOf(tables, 'diary')) {
     const p = rewatchPayload(r.notes);
     if (!p) continue;
-    const date = parseDate(p.watchedDate);
+    // watchedDate ends in Z, but its digits equal the same row's naive
+    // actionDate.local on every snapshot in the exports checked, so the zone is
+    // false. Read the wall clock and ignore it, or the rewatch date lands offset
+    // from the diary entry it came from.
+    const date = parseDate(p.watchedDate, 'wall');
     if (!date || !p.mediaItemId) continue;
     const c = p.episodeComposite;
     const into = (c && c.seasonNumber != null && c.episodeNumber != null)
@@ -104,7 +117,7 @@ export function buildV3Model(tables, manifest) {
     const entry = entryOf(item);
     entry.status = r.status || '';
     entry.rating = numOr(r.rating);
-    entry.watchedDate = stampOf(r.lastWatchedAt);
+    entry.watchedDate = stampOf(r.lastWatchedAt);   // a bare ISO instant
     entry.sources = r.source ? [r.source] : [];
     byId.set(entry.mediaItemId, entry);
     media.push(entry);
@@ -136,7 +149,7 @@ export function buildV3Model(tables, manifest) {
     if (!ep) { ep = { season, episode, count: 0, dates: [], handSet: new Set(), rating: null, comments: [] }; show.episodes.set(epKey, ep); show.epWatched++; }
     ep.count += 1 + (r.rewatchCount || 0);
     ep.rating = numOr(r.rating) || ep.rating;
-    const first = stampOf(r.watchedAt);   // null on an episode marked watched without a date
+    const first = stampOf(r.watchedAt, nativeMode(r));   // null on an episode marked watched without a date
     if (first) ep.dates.push(first);
     for (const d of rewatch.byEpisode.get(`${item.mediaItemId}|${season}|${episode}`) || []) {
       ep.dates.push(d.at);
@@ -178,8 +191,8 @@ export function buildV3Model(tables, manifest) {
       season: hit && hit.ep ? hit.ep.season : (r.seasonNumber ?? null),
       episode: hit && hit.ep ? hit.ep.episode : (r.episodeNumber ?? null),
       rating: numOr(r.value),
-      date: parseDate(r.createdAt) || stampOf(r.completedOn),
-      completedOn: stampOf(r.completedOn),
+      date: parseDate(r.createdAt) || stampOf(r.completedOn, nativeMode(r)),
+      completedOn: stampOf(r.completedOn, nativeMode(r)),
       moodTags: r.moodTags || [],
       watchContext: r.watchContext || [],
       visibility: r.visibility || '',
@@ -355,7 +368,7 @@ export function buildV3Model(tables, manifest) {
       note,
       imported: !!r.imported,
       userSetDate: r.userSetDate === true,   // the date was picked by hand rather than recorded
-      date: stampOf(r.actionDate) || parseDate(r.occurredAt),
+      date: stampOf(r.actionDate, diaryMode(r)) || parseDate(r.occurredAt),
     });
   }
   diary.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));

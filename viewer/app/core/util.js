@@ -28,15 +28,27 @@ export const truncate = (s, n) => { s = (s || '').replace(/\s+/g, ' ').trim(); r
 
 const DATE_ONLY = new WeakSet();   // dates parsed from a string that carried no time of day
 
-export function parseDate(s) {
+/* `mode` says how to read a stamp where the string itself does not settle it.
+     'utc'   a naive stamp is UTC, and a stated zone is honored
+     'wall'  the digits are the wall clock, and a stated zone is ignored */
+export function parseDate(s, mode = 'utc') {
   if (!s) return null;
   s = String(s);
   // ISO 8601 carrying its own zone ("…T15:56:33+00:00" or "…Z"): let Date honor the offset.
-  if (/[T ]\d{2}:\d{2}:\d{2}.*(?:Z|[+-]\d{2}:?\d{2})$/.test(s)) { const d = new Date(s); return isNaN(d) ? null : d; }
-  // Naive "YYYY-MM-DD HH:MM:SS": TV Time stores these in UTC (see the notifications table,
-  // which spells out +00:00), so parse as UTC and let display convert to browser-local time.
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
-  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
+  if (mode !== 'wall' && /[T ]\d{2}:\d{2}:\d{2}.*(?:Z|[+-]\d{2}:?\d{2})$/.test(s)) {
+    const d = new Date(s); return isNaN(d) ? null : d;
+  }
+  // Naive "YYYY-MM-DD HH:MM(:SS)". Under 'utc' this is the TV Time reading: no zone is
+  // stated for those anywhere in the export, so they are read as UTC and shown in the
+  // browser's zone. That is an assumption, not a fact: the one column that spells out an
+  // offset is the notifications `date`, written by a different part of the service. If it
+  // is wrong they are wall clocks, and every TV Time timestamp is off by the browser's
+  // offset.
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) {
+    const p = [+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)];
+    return mode === 'wall' ? new Date(...p) : new Date(Date.UTC(...p));
+  }
   // Date-only value (no time): keep it as a local calendar date so the day never shifts.
   const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m2) { const d = new Date(+m2[1], +m2[2] - 1, +m2[3]); DATE_ONLY.add(d); return d; }
