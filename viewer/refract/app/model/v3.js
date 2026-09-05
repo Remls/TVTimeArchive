@@ -400,11 +400,17 @@ export function buildV3Model(tables, manifest) {
       date: parseDate(r.createdAt),
       editedAt: parseDate(r.editedAt),
     };
+    entry.id = r.id || '';
+    entry.replyTo = r.targetType === 'comment' ? String(r.targetId) : '';
     comments.push(entry);
     // An episode comment belongs to its episode row; a show or movie one to the title.
     if (hit && hit.ep) hit.ep.comments.push(entry);
     else if (target) target.comments.push(entry);
   }
+  /* A reply names the comment it answers. Refract exports only your own
+     comments, so a reply to someone else's has no parent here. */
+  const commentById = new Map(comments.filter(c => c.id).map(c => [c.id, c]));
+  for (const c of comments) if (c.replyTo) c.parent = commentById.get(c.replyTo) || null;
   comments.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
   // oldest first within an episode, so a comment reads before any follow-up
   for (const s of shows) for (const ep of s.episodes.values()) ep.comments.sort((a, b) => (a.date?.getTime() || 0) - (b.date?.getTime() || 0));

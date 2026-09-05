@@ -4,7 +4,7 @@ import { STATE } from '../../../app/core/state.js';
 import { $, el, fmtDate, fmtInt } from '../../../app/core/util.js';
 import { detailScaffold, emptyState, listView, posterCard, statusBadge } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
-import { countryNames, enrichItem, kindIcon, metaYear, moodChips, rating10, reviewText, seriesIdOf, tagChips } from '../kit.js';
+import { commentCard, countryNames, enrichItem, kindIcon, metaYear, moodChips, rating10, reviewText, seriesIdOf, tagChips } from '../kit.js';
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
@@ -123,7 +123,8 @@ export function openShowDetail(show) {
     // Episode comments sit in their episode rows above; these are on the show itself.
     if (show.comments.length) {
       host.append(el('div', { class: 'section-title', text: show.comments.length === 1 ? '1 comment' : `${fmtInt(show.comments.length)} comments` }));
-      for (const c of show.comments) host.append(reviewCard(c));
+      const list = el('div', { class: 'cmt-list' }, show.comments.map(c => commentCard(c, { compact: true })));
+      host.append(list);
     }
   };
 
@@ -206,21 +207,13 @@ function renderSeasons(container, show, epMap, imgMap, imgFullMap) {
           el('div', { class: 'ep-title' + (w ? '' : ' unseen'), text: seasons[s][e] || `Episode ${e}` }),
           dates.length ? el('div', { class: 'ep-dates' }, dates.map((d, i) => el('span', { html: `<i class="ph ${i === 0 ? 'ph-play' : 'ph-arrow-clockwise'}"></i>${fmtDate(d)}` }))) : null,
           w && w.rating ? el('div', { class: 'ep-rating' }, [rating10(w.rating)]) : null,
-          ...((w && w.comments) || []).map(commentCard),
+          ...((w && w.comments) || []).map(c => commentCard(c, { compact: true })),
         ]),
         el('span', { class: 'count-badge ' + (!w ? 'none' : w.count === 1 ? 'watched' : 'rewatched'), text: `×${w ? w.count : 0}` }),
       ]));
     }
     container.append(det);
   }
-}
-
-// A comment inside an episode row: just when and what, the row says which episode.
-export function commentCard(c) {
-  return el('div', { class: 'cmt' }, [
-    el('div', { class: 'cmt-head' }, [el('span', { class: 'cmt-date', text: fmtDate(c.date) })]),
-    reviewText(c.text, c.isSpoiler),
-  ]);
 }
 
 export function reviewCard(r) {

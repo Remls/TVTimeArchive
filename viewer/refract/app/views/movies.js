@@ -3,7 +3,7 @@ import { STATE } from '../../../app/core/state.js';
 import { $, el, fmtDate, fmtInt } from '../../../app/core/util.js';
 import { detailScaffold, listView, posterCard, statusBadge } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
-import { countryNames, rating10 } from '../kit.js';
+import { commentCard, countryNames, rating10 } from '../kit.js';
 import { reviewCard } from './shows.js';
 
 // English display title: the export's own Title when present, else a cached
@@ -73,6 +73,6 @@ export function openMovieDetail(mv) {
 
   if (mv.comments.length) {
     body.append(el('div', { class: 'section-title', text: mv.comments.length === 1 ? '1 comment' : `${fmtInt(mv.comments.length)} comments` }));
-    for (const c of mv.comments) body.append(reviewCard(c));
+    body.append(el('div', { class: 'cmt-list' }, mv.comments.map(c => commentCard(c, { compact: true }))));
   }
 }

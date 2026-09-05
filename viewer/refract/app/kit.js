@@ -1,5 +1,5 @@
 import { openLightbox } from '../../app/core/media.js';
-import { el } from '../../app/core/util.js';
+import { el, fmtDate, truncate } from '../../app/core/util.js';
 import { chip } from '../../app/ui/kit.js';
 
 /* Refract-specific UI helpers shared by its views. */
@@ -36,6 +36,37 @@ const regionNames = (() => {
 export function countryNames(codes) {
   if (!codes || !codes.length) return '';
   return codes.map(c => { try { return (regionNames && regionNames.of(c)) || c; } catch { return c; } }).join(', ');
+}
+
+const pad2 = (n) => String(n).padStart(2, '0');
+const COMMENT_ICON = { episode: 'ph-television', show: 'ph-television', movie: 'ph-film-slate' };
+
+/* One comment, as a card, matching the TV Time viewer's. Shared by the Comments
+   view and both detail pages. opts.compact drops the "what it's on" header,
+   for the places that already say which title and episode you are looking at. */
+export function commentCard(c, opts = {}) {
+  const head = [];
+  if (!opts.compact) {
+    const label = c.replyTo && !c.target ? 'Reply'
+      : c.season != null ? `${c.title} S${pad2(c.season)}E${pad2(c.episode)}` : c.title;
+    const nav = opts.nav;
+    const target = el('span', { class: 'cmt-target' + (nav ? ' clickable' : '') }, [
+      el('i', { class: 'ph ' + (COMMENT_ICON[c.kind] || 'ph-chat-circle-text') }), ' ' + label,
+    ]);
+    if (nav) target.addEventListener('click', () => opts.onNav(nav));
+    head.push(target);
+  }
+  head.push(el('span', { class: 'cmt-date', text: fmtDate(c.date) + (c.editedAt ? ' (edited)' : '') }));
+
+  const kids = [el('div', { class: 'cmt-head' }, head)];
+  // Marked even in the compact view, so a reply is never mistaken for a comment.
+  if (c.replyTo) {
+    kids.push(c.parent
+      ? el('div', { class: 'cmt-parent' }, [el('i', { class: 'ph ph-arrow-bend-up-left' }), el('span', { text: truncate(c.parent.text, 140) })])
+      : el('div', { class: 'cmt-parent muted' }, [el('i', { class: 'ph ph-arrow-bend-up-left' }), el('span', { text: 'Reply to a comment that isn’t in the export' })]));
+  }
+  kids.push(reviewText(c.text, c.isSpoiler));
+  return el('article', { class: 'cmt' }, kids);
 }
 
 // Mood tags and watch contexts arrive as snake_case tokens ("fun_ride").
