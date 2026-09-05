@@ -20,6 +20,26 @@ export const enrichItem = (m) => ({ seriesId: seriesIdOf(m), title: m.title, yea
 // null defers to the caller's default (the TV icon)
 export const kindIcon = (m) => (m && m.isAnime ? 'ph-flower-lotus' : null);
 
+/* Refract names its icons after its own set (badges and challenges both use
+   it); these are the Phosphor equivalents. An unmapped name falls back rather
+   than rendering nothing, and the `-outline` variants are the same glyph. */
+const REFRACT_ICON = {
+  albums: 'ph-squares-four', calendar: 'ph-calendar-blank', chatbubble: 'ph-chat-circle',
+  'checkmark-circle': 'ph-check-circle', 'checkmark-done': 'ph-checks', 'color-wand': 'ph-magic-wand',
+  compass: 'ph-compass', copy: 'ph-copy', diamond: 'ph-diamond', edit: 'ph-pencil-simple',
+  film: 'ph-film-strip', flame: 'ph-fire', flash: 'ph-lightning', flower: 'ph-flower-lotus',
+  happy: 'ph-smiley', heart: 'ph-heart', home: 'ph-house', hourglass: 'ph-hourglass',
+  layers: 'ph-stack', moon: 'ph-moon', people: 'ph-users', 'person-add': 'ph-user-plus',
+  planet: 'ph-planet', play: 'ph-play', 'play-circle': 'ph-play-circle',
+  'play-skip-forward': 'ph-skip-forward', refresh: 'ph-arrow-clockwise', ribbon: 'ph-seal',
+  rocket: 'ph-rocket-launch', search: 'ph-magnifying-glass', snow: 'ph-snowflake',
+  star: 'ph-star', 'star-half': 'ph-star-half', ticket: 'ph-ticket', time: 'ph-clock',
+  trophy: 'ph-trophy', tv: 'ph-television', water: 'ph-drop',
+};
+
+export const refractIcon = (name, fallback = 'ph-seal-check') =>
+  REFRACT_ICON[String(name || '').replace(/-outline$/, '')] || fallback;
+
 // Refract rates on a 1-10 scale; a ten-star bar would drown the rows, so the
 // rating renders as one star with the number inside.
 export function rating10(n) {

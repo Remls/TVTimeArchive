@@ -2,24 +2,11 @@ import { STATE } from '../../../app/core/state.js';
 import { fmtDate } from '../../../app/core/dates.js';
 import { el, fmtInt } from '../../../app/core/util.js';
 import { listView } from '../../../app/ui/kit.js';
+import { refractIcon } from '../kit.js';
 
 /* Refract's timed challenges, recovered from posts.jsonl. The export records
    the join and the completion but never the goal or the progress, so a
    challenge is only ever "joined" or "completed" here. */
-
-/* Refract names its icons after its own set; these are the Phosphor
-   equivalents, with a rosette for anything not seen in an export yet. */
-const ICON = {
-  rocket: 'ph-rocket-launch',
-  compass: 'ph-compass',
-  calendar: 'ph-calendar-blank',
-  'play-circle': 'ph-play-circle',
-  star: 'ph-star',
-  edit: 'ph-pencil-simple',
-  trophy: 'ph-trophy',
-  flame: 'ph-fire',
-};
-const iconOf = (name) => ICON[name] || 'ph-target';
 
 export function renderChallenges(root) {
   const challenges = STATE.model.challenges;
@@ -41,7 +28,7 @@ export function renderChallenges(root) {
     ],
     renderItem: (c) => el('div', { class: 'item' }, [
       // Refract gives every challenge its own colour; it tints the icon only.
-      el('span', { class: 'challenge-ico', style: c.color ? `color:${c.color}` : '' }, [el('i', { class: 'ph ' + iconOf(c.icon) })]),
+      el('span', { class: 'item-ico', style: c.color ? `color:${c.color}` : '' }, [el('i', { class: 'ph ' + refractIcon(c.icon, 'ph-target') })]),
       el('div', { class: 'item-main' }, [
         el('div', { class: 'item-title', text: c.title }),
         el('div', { class: 'item-meta' }, [

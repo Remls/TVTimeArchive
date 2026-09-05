@@ -486,5 +486,30 @@ export function buildV3Model(tables, manifest) {
   const challenges = [...challengeById.values()]
     .sort((a, b) => (b.completedAt || b.joinedAt || 0) - (a.completedAt || a.joinedAt || 0));
 
-  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary, favorites, comments, profile, goals, challenges, stats };
+  /* ---- posts.jsonl: badges. A milestone_batch post carries the badges it
+     awarded; a badge climbs tiers over time, each tier its own award, so they
+     group by family the way TV Time's repeated badges group by type. ---- */
+  const badgeByKey = new Map();
+  for (const r of rawOf(tables, 'posts')) {
+    if (r.eventType !== 'milestone_batch') continue;
+    const at = parseDate(r.createdAt);
+    for (const b of (r.metadata || {}).badges || []) {
+      if (!b || !b.badgeId) continue;
+      const key = String(b.badgeId).split(':')[0];
+      // Refract's one-off badges are a class of their own, not a tier, and say
+      // so in the id rather than in the tier field, which still reads 5.
+      const unique = /:unique$/.test(String(b.badgeId));
+      let g = badgeByKey.get(key);
+      if (!g) { g = { key, title: b.title || key, icon: b.icon || '', tiers: [], tier: null, unique: false, first: null, last: null }; badgeByKey.set(key, g); }
+      g.tiers.push({ tier: unique ? null : numOr(b.tier), unique, at });
+      if (unique) g.unique = true;
+      if (!g.first || (at && at < g.first)) g.first = at;
+      if (!g.last || (at && at > g.last)) g.last = at;
+      if (!unique && (g.tier == null || (numOr(b.tier) || 0) > g.tier)) g.tier = numOr(b.tier);
+    }
+  }
+  for (const g of badgeByKey.values()) g.tiers.sort((a, b) => (a.tier || 0) - (b.tier || 0));
+  const badges = [...badgeByKey.values()].sort((a, b) => (b.last || 0) - (a.last || 0));
+
+  return { media, shows, movies, history, lists, reviews, ratings, reactions, diary, favorites, comments, profile, goals, challenges, badges, stats };
 }

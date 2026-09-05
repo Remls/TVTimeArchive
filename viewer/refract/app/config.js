@@ -15,6 +15,7 @@ import { renderFavorites } from './views/favorites.js';
 import { renderProfile } from './views/profile.js';
 import { renderComments } from './views/comments.js';
 import { renderChallenges } from './views/challenges.js';
+import { renderBadges } from './views/badges.js';
 
 // Shows and Anime are separate nav views over the same entity pool, so both
 // route to the same detail opener.
@@ -42,13 +43,14 @@ export const REFRACT_APP = {
     { id: 'reviews', label: 'Reviews', icon: 'ph-note-pencil', render: renderReviews },
     { id: 'comments', label: 'Comments', icon: 'ph-chat-circle-text', render: renderComments, available: has('comments') },
     { id: 'challenges', label: 'Challenges', icon: 'ph-target', render: renderChallenges, available: has('challenges') },
+    { id: 'badges', label: 'Badges', icon: 'ph-medal', render: renderBadges, available: has('badges') },
     { id: 'profile', label: 'Profile', icon: 'ph-user', render: renderProfile, available: (m) => !!m.profile },
     { id: 'raw',    label: 'All data', icon: 'ph-database', render: renderRaw },
   ],
   groups: {
     watch:   { label: 'Watch',   icon: 'ph-play-circle', children: ['shows', 'anime', 'movies', 'watch-history', 'diary', 'favorites', 'lists'] },
     ratings: { label: 'Ratings', icon: 'ph-star',        children: ['ratings', 'reactions', 'reviews'] },
-    community: { label: 'Community', icon: 'ph-users-three', children: ['comments', 'challenges'] },
+    community: { label: 'Community', icon: 'ph-users-three', children: ['comments', 'challenges', 'badges'] },
   },
   detail: {
     shows: showDetail,
