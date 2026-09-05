@@ -1,6 +1,7 @@
 import { movieTitle } from '../core/enrich.js';
 import { STATE } from '../core/state.js';
-import { $, el, fmtDate, fmtDuration, fmtInt, norm, slugify } from '../core/util.js';
+import { fmtDate } from '../core/dates.js';
+import { $, el, fmtDuration, fmtInt, norm, slugify } from '../core/util.js';
 import { chip, detailScaffold, listView, posterCard, ratingChip, statusBadge } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 import { commentCard } from './comments.js';

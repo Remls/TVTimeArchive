@@ -1,6 +1,7 @@
 import { movieTitle } from '../../../app/core/enrich.js';
 import { STATE } from '../../../app/core/state.js';
-import { $, el, fmtDate, fmtInt } from '../../../app/core/util.js';
+import { fmtDate } from '../../../app/core/dates.js';
+import { $, el, fmtInt } from '../../../app/core/util.js';
 import { detailScaffold, listView, posterCard, statusBadge } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
 import { commentCard, countryNames, rating10 } from '../kit.js';

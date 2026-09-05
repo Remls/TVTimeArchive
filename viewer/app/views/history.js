@@ -1,7 +1,8 @@
 import { Enrichment, MovieMeta, movieTitle } from '../core/enrich.js';
 import { zoomImg } from '../core/media.js';
 import { STATE } from '../core/state.js';
-import { $, download, el, fmtDate, fmtDuration, fmtInt, norm, toCSV } from '../core/util.js';
+import { fmtDate } from '../core/dates.js';
+import { $, download, el, fmtDuration, fmtInt, norm, toCSV } from '../core/util.js';
 import { buildToolbar, entityNav, menuSelect, viewHead } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 

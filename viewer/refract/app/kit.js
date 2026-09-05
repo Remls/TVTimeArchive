@@ -1,5 +1,6 @@
 import { openLightbox } from '../../app/core/media.js';
-import { el, fmtDate, truncate } from '../../app/core/util.js';
+import { fmtDate } from '../../app/core/dates.js';
+import { el, truncate } from '../../app/core/util.js';
 import { chip } from '../../app/ui/kit.js';
 
 /* Refract-specific UI helpers shared by its views. */

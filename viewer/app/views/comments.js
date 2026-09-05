@@ -1,7 +1,8 @@
 import { BROKEN_IMG, openLightbox } from '../core/media.js';
 import { STATE } from '../core/state.js';
 import { Backup } from '../core/storage.js';
-import { $, el, fmtDate, fmtInt, truncate } from '../core/util.js';
+import { fmtDate } from '../core/dates.js';
+import { $, el, fmtInt, truncate } from '../core/util.js';
 import { refreshExtended } from '../model/model.js';
 import { backupNote, entityNav, listView } from '../ui/kit.js';
 import { navigate, renderView } from '../ui/router.js';

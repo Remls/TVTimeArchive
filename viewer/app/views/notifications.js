@@ -1,6 +1,7 @@
 import { avatarEl, resilientImg } from '../core/media.js';
 import { STATE } from '../core/state.js';
-import { $, el, fmtDate, fmtInt } from '../core/util.js';
+import { fmtDate } from '../core/dates.js';
+import { $, el, fmtInt } from '../core/util.js';
 import { NOTIF_CAT_LABEL } from '../model/model.js';
 import { emptyState, listView, viewHead } from '../ui/kit.js';
 

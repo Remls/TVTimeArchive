@@ -1,7 +1,8 @@
 import { Enrichment } from '../../../app/core/enrich.js';
 import { zoomImg } from '../../../app/core/media.js';
 import { STATE } from '../../../app/core/state.js';
-import { $, el, fmtDate, fmtInt } from '../../../app/core/util.js';
+import { fmtDate } from '../../../app/core/dates.js';
+import { $, el, fmtInt } from '../../../app/core/util.js';
 import { detailScaffold, emptyState, listView, posterCard, statusBadge } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
 import { commentCard, countryNames, enrichItem, kindIcon, metaYear, moodChips, rating10, reviewText, seriesIdOf, tagChips } from '../kit.js';

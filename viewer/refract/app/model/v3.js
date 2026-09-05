@@ -1,4 +1,4 @@
-import { parseDate } from '../../../app/core/util.js';
+import { parseDate } from '../../../app/core/dates.js';
 import { assignSlugs, buildStats } from './shared.js';
 
 /* -------------------------------------------------------------------

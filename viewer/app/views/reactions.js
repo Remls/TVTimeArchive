@@ -1,7 +1,8 @@
 import { Enrichment, movieTitle } from '../core/enrich.js';
 import { zoomImg } from '../core/media.js';
 import { STATE } from '../core/state.js';
-import { $, el, fmtDate, fmtInt, norm } from '../core/util.js';
+import { fmtDate } from '../core/dates.js';
+import { $, el, fmtInt, norm } from '../core/util.js';
 import { ensureShowPosters, entityNav, knownShowSlug, listView, posterCard, showPosterItem } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 

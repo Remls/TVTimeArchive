@@ -1,5 +1,6 @@
 import { STATE } from '../../../app/core/state.js';
-import { el, fmtDate, fmtInt } from '../../../app/core/util.js';
+import { fmtDate } from '../../../app/core/dates.js';
+import { el, fmtInt } from '../../../app/core/util.js';
 import { barChart, chip, emptyState, ensureShowPosters, posterCard, viewHead } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
 import { enrichItem, kindIcon, metaYear, moodText, seriesIdOf } from '../kit.js';

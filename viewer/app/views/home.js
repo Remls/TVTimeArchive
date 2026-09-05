@@ -1,6 +1,7 @@
 import { avatarEl } from '../core/media.js';
 import { STATE } from '../core/state.js';
-import { el, fmtDate, fmtDuration, fmtInt, slugify } from '../core/util.js';
+import { fmtDate } from '../core/dates.js';
+import { el, fmtDuration, fmtInt, slugify } from '../core/util.js';
 import { barChart, emptyState, ensureShowPosters, knownShowSlug, posterCard, showPosterItem } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 

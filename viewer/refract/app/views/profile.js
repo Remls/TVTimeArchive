@@ -1,6 +1,7 @@
 import { avatarEl } from '../../../app/core/media.js';
 import { STATE } from '../../../app/core/state.js';
-import { el, fmtDate, fmtInt, nonEmpty } from '../../../app/core/util.js';
+import { fmtDate } from '../../../app/core/dates.js';
+import { el, fmtInt, nonEmpty } from '../../../app/core/util.js';
 import { countryNames, humanizeTag } from '../kit.js';
 
 /* Your Refract account settings. The export carries 80-odd fields, most of

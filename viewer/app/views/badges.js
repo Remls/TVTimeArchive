@@ -1,6 +1,7 @@
 import { resilientImg } from '../core/media.js';
 import { STATE } from '../core/state.js';
-import { $, el, fmtDate, fmtInt } from '../core/util.js';
+import { fmtDate } from '../core/dates.js';
+import { $, el, fmtInt } from '../core/util.js';
 import { chip, emptyState, knownShowSlug, listView, viewHead } from '../ui/kit.js';
 import { navigate } from '../ui/router.js';
 

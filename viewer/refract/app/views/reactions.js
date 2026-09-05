@@ -1,5 +1,6 @@
 import { STATE } from '../../../app/core/state.js';
-import { el, fmtDate, fmtInt } from '../../../app/core/util.js';
+import { fmtDate } from '../../../app/core/dates.js';
+import { el, fmtInt } from '../../../app/core/util.js';
 import { listView } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
 import { moodChips, rating10, tagChips } from '../kit.js';

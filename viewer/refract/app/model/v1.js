@@ -1,4 +1,5 @@
-import { norm, parseDate, toNum } from '../../../app/core/util.js';
+import { parseDate } from '../../../app/core/dates.js';
+import { norm, toNum } from '../../../app/core/util.js';
 import { assignSlugs, buildStats } from './shared.js';
 
 /* -------------------------------------------------------------------

@@ -1,6 +1,7 @@
 import { movieTitle } from '../core/enrich.js';
 import { STATE } from '../core/state.js';
-import { $, el, fmtDate, fmtInt } from '../core/util.js';
+import { fmtDate } from '../core/dates.js';
+import { $, el, fmtInt } from '../core/util.js';
 import { emptyState, listView, ratingChip, showLineItem, showPosterItem, viewHead } from '../ui/kit.js';
 
 export function renderRatings(root) {
