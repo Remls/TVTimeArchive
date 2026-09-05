@@ -1,6 +1,6 @@
 import { STATE } from '../../../app/core/state.js';
 import { fmtDate } from '../../../app/core/dates.js';
-import { el, fmtInt } from '../../../app/core/util.js';
+import { el, fmtDuration, fmtInt } from '../../../app/core/util.js';
 import { barChart, chip, emptyState, ensureShowPosters, posterCard, viewHead } from '../../../app/ui/kit.js';
 import { navigate } from '../../../app/ui/router.js';
 import { enrichItem, kindIcon, metaYear, moodText, seriesIdOf } from '../kit.js';
@@ -14,9 +14,16 @@ export function renderHome(root) {
     st.firstWatch ? `Tracked since ${fmtDate(st.firstWatch)}, last activity ${fmtDate(st.lastWatch)}` : '');
 
   const cards = [
-    // the two watched totals are the hero stats; the rest read neutral
+    // the watched totals and the two runtimes are the hero stats; the rest read neutral
     ['Episodes watched', fmtInt(st.episodesWatched), 'accent'],
     ['Movies watched', fmtInt(st.moviesWatched), 'accent'],
+    /* Time in TV covers the episodes Refract gave a runtime for. Nothing in the
+       export carries a movie runtime, so its companion card is a placeholder
+       rather than a total that would read as zero. */
+    ...(st.seriesRuntime ? [
+      ['Time in TV', fmtDuration(st.seriesRuntime), 'accent'],
+      ['Time in film', '?', 'accent'],
+    ] : []),
     // Without the anime split, tvShows already counts every show.
     ['TV shows tracked', fmtInt(st.tvShows), ''],
     ...(st.anime ? [['Anime tracked', fmtInt(st.anime), '']] : []),

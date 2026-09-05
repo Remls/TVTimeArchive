@@ -146,8 +146,9 @@ export function buildV3Model(tables, manifest) {
     const season = r.seasonNumber ?? 0, episode = r.episodeNumber ?? 0;
     const epKey = season + '|' + episode;
     let ep = show.episodes.get(epKey);
-    if (!ep) { ep = { season, episode, count: 0, dates: [], handSet: new Set(), rating: null, comments: [] }; show.episodes.set(epKey, ep); show.epWatched++; }
+    if (!ep) { ep = { season, episode, count: 0, runtime: 0, dates: [], handSet: new Set(), rating: null, comments: [] }; show.episodes.set(epKey, ep); show.epWatched++; }
     ep.count += 1 + (r.rewatchCount || 0);
+    ep.runtime = Math.max(ep.runtime, numOr(r.runtimeMinutes) || 0);
     ep.rating = numOr(r.rating) || ep.rating;
     const first = stampOf(r.watchedAt, nativeMode(r));   // null on an episode marked watched without a date
     if (first) ep.dates.push(first);

@@ -46,6 +46,10 @@ export function buildStats({ shows, movies, history, lists, reviews, ratings, re
       moviesByYear.set(yk, (moviesByYear.get(yk) || 0) + 1);
     }
   }
+  // Every watch of an episode Refract knows a runtime for. v1 carries no
+  // runtimes at all, so it comes out zero and the Home card stays hidden.
+  let seriesRuntime = 0;
+  for (const s of shows) for (const ep of s.episodes?.values() || []) seriesRuntime += ep.runtime * ep.count * 60;
   for (const r of ratings) ratingHist.set(r.rating, (ratingHist.get(r.rating) || 0) + 1);
   for (const r of reactions) for (const m of r.moodTags) moodCounts.set(m, (moodCounts.get(m) || 0) + 1);
   return {
@@ -57,6 +61,7 @@ export function buildStats({ shows, movies, history, lists, reviews, ratings, re
     lists: lists.length,
     reviews: reviews.length,
     ratings: ratings.length,
+    seriesRuntime,
     epByMonth, moviesByYear, ratingHist,
     topMoods: [...moodCounts.entries()].sort((a, b) => b[1] - a[1]),
     firstWatch, lastWatch,

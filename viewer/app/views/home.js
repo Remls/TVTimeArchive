@@ -16,9 +16,9 @@ export function renderHome(root) {
   ]));
 
   const cards = [
-    // single-accent: only the hero stat (total time in TV) is coral; the rest read neutral
-    ['episodesWatched', 'Episodes watched', o.episodesWatched, '', null],
-    ['moviesWatched', 'Movies watched', o.moviesWatched, '', null],
+    // the watched totals and the two runtimes are the hero stats; the rest read neutral
+    ['episodesWatched', 'Episodes watched', o.episodesWatched, 'accent', null],
+    ['moviesWatched', 'Movies watched', o.moviesWatched, 'accent', null],
     ['seriesRuntime', 'Time in TV', fmtDuration(o.seriesRuntime), 'accent', null],
     ['moviesRuntime', 'Time in film', fmtDuration(o.moviesRuntime), 'accent', null],
     ['showsTracked', 'Shows tracked', fmtInt(o.showsTracked), '', null],
