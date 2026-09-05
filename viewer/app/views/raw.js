@@ -148,6 +148,29 @@ function jsonPanel(field, value) {
   ]);
 }
 
+/* ---------- Export ----------
+   The view keeps rows nested; a spreadsheet cannot, so CSV flattens on the way
+   out. Keys keep their source spelling and gain a dotted path (item.tmdbId),
+   and arrays are JSON-encoded. A CSV-sourced table has no nesting, so its rows
+   and column names pass through untouched. */
+function flattenInto(obj, prefix, out) {
+  for (const [k, v] of Object.entries(obj)) {
+    const key = prefix ? prefix + '.' + k : k;
+    if (v && typeof v === 'object' && !Array.isArray(v)) flattenInto(v, key, out);
+    else out[key] = Array.isArray(v) ? JSON.stringify(v) : (v == null ? '' : v);
+  }
+  return out;
+}
+
+/* toCSV reads its columns off the first row, so every row is given the same
+   keys: `ratings.item` is an object on 37 rows and null on 360. */
+function flatRows(rows) {
+  const flat = rows.map(r => flattenInto(r, '', {}));
+  const cols = [];
+  for (const r of flat) for (const k of Object.keys(r)) if (!cols.includes(k)) cols.push(k);
+  return flat.map(r => Object.fromEntries(cols.map(c => [c, r[c] ?? ''])));
+}
+
 export function renderRaw(root) {
   const n = Object.keys(STATE.tables).length;
   viewHead(root, 'All data', `${n} ${STATE.manifest ? (n === 1 ? 'section' : 'sections') : 'CSV files'}`);
@@ -164,7 +187,7 @@ export function renderRaw(root) {
   const doExport = (fmt) => {
     const { rows } = computed();
     const base = state.file.replace(/\.(csv|jsonl)$/i, '') + '-filtered';
-    if (fmt === 'csv') download(base + '.csv', toCSV(rows), 'text/csv');
+    if (fmt === 'csv') download(base + '.csv', toCSV(flatRows(rows)), 'text/csv');
     else download(base + '.json', JSON.stringify(rows, null, 2), 'application/json');
   };
   const { search, controls } = buildToolbar(root, { onExport: doExport });
