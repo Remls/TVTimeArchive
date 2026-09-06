@@ -456,7 +456,8 @@ tr.json-row:hover > td { background: var(--bg); }
 .json-btns { display: flex; gap: 6px; }
 .json-btns button {
   background: var(--surface); border: 1px solid var(--line); color: var(--text-dim);
-  border-radius: 999px; padding: 4px 11px; font-size: .74rem; white-space: nowrap;
+  border-radius: 999px; width: 26px; height: 26px; padding: 0;
+  display: grid; place-items: center; font-size: .88rem;
 }
 .json-btns button:hover { color: var(--text); border-color: var(--text-faint); }
 .json-body {

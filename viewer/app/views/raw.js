@@ -127,20 +127,29 @@ function jsonPanel(field, value) {
   const render = (collapseFrom) => { body.innerHTML = ''; body.append(treeNodes(value, 0, collapseFrom)); };
   render(1);
 
-  const copy = el('button', { text: 'Copy' });
-  copy.addEventListener('click', async () => {
+  const iconBtn = (icon, label, onclick) =>
+    el('button', { html: `<i class="ph ph-${icon}"></i>`, title: label, 'aria-label': label, onclick });
+
+  const copy = iconBtn('copy', 'Copy', async () => {
     // The whole value, not what happens to be unfolded.
-    try { await navigator.clipboard.writeText(JSON.stringify(value, null, 2)); copy.textContent = 'Copied'; }
-    catch { copy.textContent = 'Copy failed'; }
-    setTimeout(() => { copy.textContent = 'Copy'; }, 1600);
+    let icon = 'check', label = 'Copied';
+    try { await navigator.clipboard.writeText(JSON.stringify(value, null, 2)); }
+    catch { icon = 'warning'; label = 'Copy failed'; }
+    setCopy(icon, label);
+    setTimeout(() => setCopy('copy', 'Copy'), 1600);
   });
+  const setCopy = (icon, label) => {
+    copy.innerHTML = `<i class="ph ph-${icon}"></i>`;
+    copy.title = label;
+    copy.setAttribute('aria-label', label);
+  };
 
   return el('div', { class: 'json-panel' }, [
     el('div', { class: 'json-head' }, [
       el('span', { class: 'json-field', text: field }),
       el('span', { class: 'json-btns' }, [
-        el('button', { text: 'Expand all', onclick: () => render(Infinity) }),
-        el('button', { text: 'Collapse all', onclick: () => render(1) }),
+        iconBtn('arrows-out-line-vertical', 'Expand all', () => render(Infinity)),
+        iconBtn('arrows-in-line-vertical', 'Collapse all', () => render(1)),
         copy,
       ]),
     ]),
