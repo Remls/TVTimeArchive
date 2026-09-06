@@ -195,7 +195,7 @@ export function renderRaw(root) {
 
   const doExport = (fmt) => {
     const { rows } = computed();
-    const base = state.file.replace(/\.(csv|jsonl)$/i, '') + '-filtered';
+    const base = state.file + '-filtered';
     if (fmt === 'csv') download(base + '.csv', toCSV(flatRows(rows)), 'text/csv');
     else download(base + '.json', JSON.stringify(rows, null, 2), 'application/json');
   };

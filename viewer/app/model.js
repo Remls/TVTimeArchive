@@ -8,7 +8,7 @@ import { $, nonEmpty, norm, slugify, toNum } from './core/util.js';
 export function buildModel(tables) {
   const m = {};
 
-  /* ---- Profile: user.csv + user_personal_data.csv + user_tv_show_data.csv ---- */
+  /* ---- Profile: user + user_personal_data + user_tv_show_data ---- */
   m.profile = buildProfile();
 
   /* ---- History: v2 watch/rewatch episodes + movie watches + rewatched_episode.
@@ -23,7 +23,7 @@ export function buildModel(tables) {
      star ratings are handled by buildRatings(). ---- */
   m.reactions = buildReactions(m.history);
 
-  /* ---- Per-show reaction totals: tv_show_user_emotion_count.csv ---- */
+  /* ---- Per-show reaction totals: tv_show_user_emotion_count ---- */
   m.emotionPerShow = buildEmotionPerShow();
 
   /* ---- Shows: followed_tv_show + v2 user-series + ratings + reactions + addiction + seen ---- */
@@ -32,25 +32,25 @@ export function buildModel(tables) {
   /* ---- Movies: tracking-prod-records(entity=movie) + ratings + reaction votes ---- */
   m.movies = buildMovies(m.reactions, m.ratings, m.history);
 
-  /* ---- Lists: lists-prod-lists.csv (collection + per-list items, titles resolved) ---- */
+  /* ---- Lists: lists-prod-lists (collection + per-list items, titles resolved) ---- */
   m.lists = buildLists();
 
   /* ---- Comments: your posts across episode/show/movie/profile comment tables,
-     with attached images (meme.csv) and reply threading where recoverable ---- */
+     with attached images (the meme table) and reply threading where recoverable ---- */
   m.comments = buildComments(m.shows);
 
   /* ---- Notifications: read-only activity feed (likes, replies, mentions, follows,
-     badges, airing reminders) from notifications-prod-notifications.csv ---- */
+     badges, airing reminders) from notifications-prod-notifications ---- */
   m.notifications = buildNotifications();
 
-  /* ---- Badges: user_badge.csv, grouped by badge type with art from notifications ---- */
+  /* ---- Badges: user_badge, grouped by badge type with art from notifications ---- */
   m.badges = buildBadges();
 
   /* ---- Characters & Friends: ids from the export, names/images from the extended backup ---- */
   m.characters = buildCharacters();
   m.friends = buildFriends();
 
-  /* ---- Stats: stats-prod-cache.csv (marathons, per-month charts) ---- */
+  /* ---- Stats: stats-prod-cache (marathons, per-month charts) ---- */
   m.stats = buildStats();
 
   /* ---- Overview headline stats: tracking-stats row + counts across sources ---- */
@@ -61,17 +61,17 @@ export function buildModel(tables) {
 
 /* ---------------- Profile ---------------- */
 export function buildProfile() {
-  const u = T('user.csv')[0] || {};
+  const u = T('user')[0] || {};
   const personal = {};
-  for (const r of T('user_personal_data.csv')) if (r.name) personal[r.name] = r.value;
+  for (const r of T('user_personal_data')) if (r.name) personal[r.name] = r.value;
   const tvd = {};
-  for (const r of T('user_tv_show_data.csv')) if (r.name) tvd[r.name] = r.value;
+  for (const r of T('user_tv_show_data')) if (r.name) tvd[r.name] = r.value;
 
-  // user.csv `name` is often just the numeric user id, treat that as "no real name".
+  // user `name` is often just the numeric user id, treat that as "no real name".
   const rawName = (u.name || '').trim();
   const realName = (rawName && rawName !== u.id && !/^\d+$/.test(rawName)) ? rawName : '';
-  const routing = T('routing-prod-users.csv')[0] || {};
-  const username = (routing.username || (T('auth-prod-login.csv').find(r => r.username) || {}).username || '').trim();
+  const routing = T('routing-prod-users')[0] || {};
+  const username = (routing.username || (T('auth-prod-login').find(r => r.username) || {}).username || '').trim();
   // Greeting: real name, else username (no @), else nothing.
   const displayName = realName || username;
 
@@ -110,7 +110,7 @@ export function buildRatings(history) {
   const put = (bucket, k, meta) => { if (!bucket[k] || meta.stars > bucket[k].stars) bucket[k] = meta; };
   const { ep: epWatch, mv: movieWatch } = watchDates(history);
 
-  const ratingFiles = ['ratings-3-prod-episode_votes.csv', 'ratings-prod-episode_votes.csv', 'ratings-live-votes.csv', 'ratings-v2-prod-votes.csv'];
+  const ratingFiles = ['ratings-3-prod-episode_votes', 'ratings-prod-episode_votes', 'ratings-live-votes', 'ratings-v2-prod-votes'];
   for (const f of ratingFiles) {
     for (const r of T(f)) {
       const rl = RATING_LABELS[reactionIdFromKey(r.vote_key, r.user_id)];
@@ -122,13 +122,13 @@ export function buildRatings(history) {
     }
   }
   // Old show-level 1–5 star rating (this one has a real timestamp).
-  for (const r of T('tv_show_rate.csv')) {
+  for (const r of T('tv_show_rate')) {
     if (!r.tv_show_name) continue;
     const stars = Math.max(1, Math.min(5, Math.round(toNum(r.rating))));
     put(shows, norm(r.tv_show_name), { kind: 'show', title: r.tv_show_name, stars, label: LEVEL_LABEL[stars] || '', date: parseDate(r.created_at) });
   }
   // Ratings hidden in the old episode_emotion table (ids that aren't emotions).
-  for (const r of T('episode_emotion.csv')) {
+  for (const r of T('episode_emotion')) {
     if (!r.tv_show_name) continue;
     const id = toNum(r.emotion_id) || null;
     if (EMOTION_LABELS[id]) continue;          // it's a feeling → handled by buildReactions
@@ -147,19 +147,19 @@ export function buildRatings(history) {
    Sources: emotions-3/v2 votes, emotions-live (movies), episode_emotion. */
 export function buildReactions(history) {
   const list = [];
-  for (const f of ['emotions-3-prod-episode_votes.csv', 'emotions-v2-prod-votes.csv']) {
+  for (const f of ['emotions-3-prod-episode_votes', 'emotions-v2-prod-votes']) {
     for (const r of T(f)) {
       const title = r.series_name || r.movie_name;
       if (!title) continue;
       list.push({ kind: r.movie_name ? 'movie' : 'episode', title, season: r.season_number || '', episode: r.episode_number || '',
-        reactionId: reactionIdFromKey(r.vote_key, r.user_id), date: null, source: f.replace('.csv', '') });
+        reactionId: reactionIdFromKey(r.vote_key, r.user_id), date: null, source: f });
     }
   }
-  for (const r of T('emotions-live-votes.csv')) {
+  for (const r of T('emotions-live-votes')) {
     if (!r.movie_name) continue;
     list.push({ kind: 'movie', title: r.movie_name, season: '', episode: '', reactionId: reactionIdFromKey(r.vote_key, r.user_id), date: null, source: 'emotions-live' });
   }
-  for (const r of T('episode_emotion.csv')) {
+  for (const r of T('episode_emotion')) {
     if (!r.tv_show_name) continue;
     const id = toNum(r.emotion_id) || null;
     if (!EMOTION_LABELS[id]) continue;   // ids that aren't feelings are old ratings → buildRatings
@@ -194,10 +194,10 @@ export function buildReactions(history) {
 }
 
 /* ---------------- Per-show reaction totals ----------------
-   tv_show_user_emotion_count.csv, TV Time's own per-show reaction tally. */
+   tv_show_user_emotion_count, TV Time's own per-show reaction tally. */
 export function buildEmotionPerShow() {
   const perShow = {};
-  for (const r of T('tv_show_user_emotion_count.csv')) {
+  for (const r of T('tv_show_user_emotion_count')) {
     if (!r.tv_show_name) continue;
     perShow[norm(r.tv_show_name)] = (perShow[norm(r.tv_show_name)] || 0) + toNum(r.count);
   }
@@ -205,13 +205,13 @@ export function buildEmotionPerShow() {
 }
 
 /* ---------------- History (watch timeline) ----------------
-   Episodes: tracking-prod-records-v2.csv  (key starts watch-episode / rewatch-episode)
-   Movies:   tracking-prod-records.csv     (entity_type == movie, type == watch/rewatch)
-   Extra rewatches: rewatched_episode.csv */
+   Episodes: tracking-prod-records-v2  (key starts watch-episode / rewatch-episode)
+   Movies:   tracking-prod-records     (entity_type == movie, type == watch/rewatch)
+   Extra rewatches: rewatched_episode */
 export function buildHistory() {
   const events = [];
 
-  for (const r of T('tracking-prod-records-v2.csv')) {
+  for (const r of T('tracking-prod-records-v2')) {
     const key = r.key || '';
     if (key.startsWith('watch-episode') || key.startsWith('rewatch-episode')) {
       const d = parseDate(r.created_at);
@@ -227,7 +227,7 @@ export function buildHistory() {
     }
   }
 
-  for (const r of T('tracking-prod-records.csv')) {
+  for (const r of T('tracking-prod-records')) {
     if (r.entity_type !== 'movie') continue;
     if (r.type !== 'watch' && r.type !== 'rewatch') continue;
     const d = parseDate(r.watch_date) || parseDate(r.created_at);
@@ -247,12 +247,12 @@ export function buildHistory() {
 
 /* ---------------- Shows ----------------
    Merge, keyed by normalized title:
-     followed_tv_show.csv        -> follow status, folder, followed date
+     followed_tv_show            -> follow status, folder, followed date
      tracking-prod-records-v2    -> per-series watch/rewatch counts, following flag
      tv_show_rate / ratings      -> rating
      tv_show_user_emotion_count  -> emotion count
-     show_addiction_score.csv    -> engagement score
-     seen_episode_source.csv     -> seen-episode count
+     show_addiction_score        -> engagement score
+     seen_episode_source         -> seen-episode count
    Watched-episode counts are also cross-checked against the history timeline. */
 export function buildShows(ratings, reactions, emotionPerShow, history) {
   const shows = {};
@@ -261,8 +261,8 @@ export function buildShows(ratings, reactions, emotionPerShow, history) {
     return (shows[k] ||= { title, id: null, status: null, followedAt: null, epWatched: 0, rewatches: 0, rating: null, emotionCount: 0, addiction: 0, seenCount: 0, lastWatched: null, sources: new Set() });
   };
 
-  // followed_tv_show.csv
-  for (const r of T('followed_tv_show.csv')) {
+  // followed_tv_show
+  for (const r of T('followed_tv_show')) {
     if (!r.tv_show_name) continue;
     const s = get(r.tv_show_name);
     s.id ||= r.tv_show_id;
@@ -275,7 +275,7 @@ export function buildShows(ratings, reactions, emotionPerShow, history) {
   }
 
   // tracking-prod-records-v2 user-series aggregates
-  for (const r of T('tracking-prod-records-v2.csv')) {
+  for (const r of T('tracking-prod-records-v2')) {
     if (!(r.key || '').startsWith('user-series')) continue;
     if (!r.series_name) continue;
     const s = get(r.series_name);
@@ -297,14 +297,14 @@ export function buildShows(ratings, reactions, emotionPerShow, history) {
   for (const [k, count] of Object.entries(reactions.countByTitle)) if (shows[k]) shows[k].emotionCount = Math.max(shows[k].emotionCount, count);
 
   // addiction score
-  for (const r of T('show_addiction_score.csv')) {
+  for (const r of T('show_addiction_score')) {
     if (!r.tv_show_name) continue;
     const s = shows[norm(r.tv_show_name)];
     if (s) s.addiction = Math.max(s.addiction, toNum(r.monthly_score), toNum(r.weekly_score));
   }
 
   // seen-episode counts
-  for (const r of T('seen_episode_source.csv')) {
+  for (const r of T('seen_episode_source')) {
     if (!r.tv_show_name) continue;
     const s = shows[norm(r.tv_show_name)];
     if (s) s.seenCount++;
@@ -328,7 +328,7 @@ export function buildShows(ratings, reactions, emotionPerShow, history) {
 }
 
 /* ---------------- Movies ----------------
-   Source of truth: tracking-prod-records.csv (entity_type == movie).
+   Source of truth: tracking-prod-records (entity_type == movie).
    A movie's rows are grouped by uuid: follow row + watch row(s) + rewatch_count row.
    Reaction votes merged by normalized title (movies have no numeric star rating). */
 export function buildMovies(reactions, ratings, history) {
@@ -338,7 +338,7 @@ export function buildMovies(reactions, ratings, history) {
     return (movies[k] ||= { title, uuid, watched: false, watchCount: 0, rewatches: 0, runtime: 0, followedAt: null, watchedAt: null, watchDates: [], status: null, reacted: false, rating: null, reactions: [], sources: new Set() });
   };
 
-  for (const r of T('tracking-prod-records.csv')) {
+  for (const r of T('tracking-prod-records')) {
     if (r.entity_type !== 'movie') continue;
     const title = r.movie_name;
     if (!title) continue;
@@ -374,28 +374,28 @@ export function buildMovies(reactions, ratings, history) {
 }
 
 /* ---------------- Lists ----------------
-   lists-prod-lists.csv is a joinable structure, not one blob:
+   lists-prod-lists is a joinable structure, not one blob:
      - a `collection` row      -> list names + cover artwork (posters/fanart), keyed by s_key
      - per-list rows (by s_key) -> membership in `objects` (each item: id/uuid + type)
    We resolve every item id/uuid to a real title using id/uuid->name maps built
    from the rest of the export, then join collection metadata to its items. */
 export function buildLists() {
-  const listRows = T('lists-prod-lists.csv');
+  const listRows = T('lists-prod-lists');
   if (!listRows.length) return [];
 
   // id/uuid -> title, gathered across the export
   const id2name = {}, uuid2name = {};
   const addId = (i, n) => { if (i && n && !id2name[i]) id2name[i] = n; };
   const addUuid = (u, n) => { if (u && n && !uuid2name[u]) uuid2name[u] = n; };
-  for (const r of T('followed_tv_show.csv')) addId(r.tv_show_id, r.tv_show_name);
-  for (const r of T('show_seen_episode_latest.csv')) addId(r.tv_show_id, r.tv_show_name);
-  for (const r of T('tv_show_rate.csv')) addId(r.tv_show_id, r.tv_show_name);
-  for (const r of T('tracking-prod-records.csv')) {
+  for (const r of T('followed_tv_show')) addId(r.tv_show_id, r.tv_show_name);
+  for (const r of T('show_seen_episode_latest')) addId(r.tv_show_id, r.tv_show_name);
+  for (const r of T('tv_show_rate')) addId(r.tv_show_id, r.tv_show_name);
+  for (const r of T('tracking-prod-records')) {
     if (r.series_id) addId(r.series_id, r.series_name);
     if (r.series_uuid) addUuid(r.series_uuid, r.series_name);
     if (r.entity_type === 'movie' && r.uuid) addUuid(r.uuid, r.movie_name);
   }
-  for (const r of T('tracking-prod-records-v2.csv')) {
+  for (const r of T('tracking-prod-records-v2')) {
     if (r.s_id) addId(r.s_id, r.series_name);
     if (r.uuid && r.series_name) addUuid(r.uuid, r.series_name);
   }
@@ -460,11 +460,11 @@ export function buildLists() {
 
 /* ---------------- Comments ----------------
    Your own comments, gathered from every comment table in the export:
-     episode_comment.csv       , comments on episodes (the bulk)
-     show_comment.csv          , comments on a show as a whole
-     profile_comment.csv       , comments you left on a friend's profile
-     comments-prod-comments.csv, newer movie/series comments (type comment/reply)
-   Attached images come from meme.csv, joined on episode_comment_id.
+     episode_comment       , comments on episodes (the bulk)
+     show_comment          , comments on a show as a whole
+     profile_comment       , comments you left on a friend's profile
+     comments-prod-comments, newer movie/series comments (type comment/reply)
+   Attached images come from the meme table, joined on episode_comment_id.
    Replies keep their parent's text only when the parent is also one of your
    comments (other users' comments aren't in the export). */
 export function buildComments(shows) {
@@ -473,7 +473,7 @@ export function buildComments(shows) {
 
   // Images grouped by the episode comment they hang off.
   const memesByComment = {};
-  for (const mm of T('meme.csv')) {
+  for (const mm of T('meme')) {
     const cid = (mm.episode_comment_id || '').trim(); if (!cid) continue;
     const url = (mm.medium_url || '').trim(); if (!url) continue;
     (memesByComment[cid] || (memesByComment[cid] = [])).push({
@@ -494,8 +494,8 @@ export function buildComments(shows) {
   const textOf = (r) => clean(r.comment) || clean(r.extended_comment) || clean(r.text) || clean(r.message);
   const add = (e) => { list.push(e); if (e.id) byId[e.id] = e; return e; };
 
-  // episode_comment.csv
-  for (const r of T('episode_comment.csv')) {
+  // episode_comment
+  for (const r of T('episode_comment')) {
     const text = textOf(r); const images = memesByComment[(r.id || '').trim()] || [];
     if (!text && !images.length) continue;
     add({
@@ -507,8 +507,8 @@ export function buildComments(shows) {
       date: parseDate(r.created_at),
     });
   }
-  // show_comment.csv
-  for (const r of T('show_comment.csv')) {
+  // show_comment
+  for (const r of T('show_comment')) {
     const text = textOf(r); if (!text) continue;
     add({
       id: (r.id || '').trim(), kind: 'show', target: clean(r.tv_show_name),
@@ -516,8 +516,8 @@ export function buildComments(shows) {
       parentId: (r.parent_comment_id || '').trim().replace(/^0$/, ''), date: parseDate(r.created_at),
     });
   }
-  // profile_comment.csv, target is a friend's profile (id only; names aren't in the export)
-  for (const r of T('profile_comment.csv')) {
+  // profile_comment, target is a friend's profile (id only; names aren't in the export)
+  for (const r of T('profile_comment')) {
     const text = textOf(r); if (!text) continue;
     add({
       id: (r.id || '').trim(), kind: 'profile', target: r.profile_id ? `Profile #${r.profile_id}` : 'A profile',
@@ -525,9 +525,9 @@ export function buildComments(shows) {
       parentId: (r.parent_comment_id || '').trim().replace(/^0$/, ''), date: parseDate(r.created_at),
     });
   }
-  // comments-prod-comments.csv, newer movie/series comments (skip likes/reports/blank rows)
+  // comments-prod-comments, newer movie/series comments (skip likes/reports/blank rows)
   const byUuid = {};
-  for (const r of T('comments-prod-comments.csv')) {
+  for (const r of T('comments-prod-comments')) {
     if (r.type !== 'comment' && r.type !== 'reply') continue;
     const text = textOf(r); if (!text) continue;
     const isMovie = r.entity_type === 'movie';
@@ -556,7 +556,7 @@ export function buildComments(shows) {
 }
 
 /* ---------------- Notifications ----------------
-   notifications-prod-notifications.csv, your read-only activity feed: who liked /
+   notifications-prod-notifications, your read-only activity feed: who liked /
    replied to / mentioned / requested to follow you, badges you unlocked, and airing
    reminders. The `text` is already display-ready; sender avatars / badge art / posters
    come from the `image` field (backed up per notifImageRef). */
@@ -574,7 +574,7 @@ export const NOTIF_CAT_LABEL = { like: 'Like', reply: 'Reply', mention: 'Mention
 
 export function buildNotifications() {
   const list = [];
-  for (const r of T('notifications-prod-notifications.csv')) {
+  for (const r of T('notifications-prod-notifications')) {
     const type = (r.type || '').trim();
     const cat = NOTIF_CAT[type] || 'other';
     const isBadge = type === 'badge-unlocked';
@@ -594,22 +594,22 @@ export function buildNotifications() {
 }
 
 /* ---------------- Badges ----------------
-   user_badge.csv, 528 earned badges, but most are the same badge unlocked per show
+   user_badge, 528 earned badges, but most are the same badge unlocked per show
    (e.g. "quick-watcher-3" for many series). We group by badge *type* (the slug minus
    the leading show id) with a count + date range. Art/name for the ~119 that appeared
    in a badge-unlocked notification; a humanized slug for the rest. */
 export function buildBadges() {
-  const rows = T('user_badge.csv');
+  const rows = T('user_badge');
   // Badge art keyed by full badge_id, from badge-unlocked notifications.
   const art = {};
-  for (const r of T('notifications-prod-notifications.csv')) {
+  for (const r of T('notifications-prod-notifications')) {
     if (r.type !== 'badge-unlocked') continue;
     const m = (r.url || '').match(/badge_id=([^&]+)/);
     if (m && (r.image || '').trim()) art[m[1]] = { image: r.image.trim(), key: 'badges/' + m[1] };
   }
   // TV Time's internal show id (the badge_id prefix) -> show name.
   const showName = {};
-  for (const file of ['followed_tv_show.csv', 'tv_show_rate.csv', 'show_comment.csv']) {
+  for (const file of ['followed_tv_show', 'tv_show_rate', 'show_comment']) {
     for (const r of T(file)) {
       const id = (r.tv_show_id || '').trim(), nm = (r.tv_show_name || '').trim();
       if (id && nm && !showName[id]) showName[id] = nm;
@@ -638,11 +638,11 @@ export function buildBadges() {
 }
 
 /* ---------------- Characters ----------------
-   show_character_episode_vote.csv, the characters you voted for, per episode. Names /
+   show_character_episode_vote, the characters you voted for, per episode. Names /
    actors / posters come from the extended backup (Extended.characters), else id only. */
 export function buildCharacters() {
   const byId = {};
-  for (const r of T('show_character_episode_vote.csv')) {
+  for (const r of T('show_character_episode_vote')) {
     const id = (r.show_character_id || '').trim(); if (!id) continue;
     const c = byId[id] || (byId[id] = { id, votes: [] });
     c.votes.push({ show: r.tv_show_name || '', season: r.episode_season_number || '', episode: r.episode_number || '', date: parseDate(r.created_at) });
@@ -659,11 +659,11 @@ export function buildCharacters() {
 }
 
 /* ---------------- Friends ----------------
-   friend.csv, your friends (ids + affinity + since). Real names / avatars come from
+   friend, your friends (ids + affinity + since). Real names / avatars come from
    the extended backup (Extended.friends), else id only. */
 export function buildFriends() {
   const list = [];
-  for (const r of T('friend.csv')) {
+  for (const r of T('friend')) {
     const id = (r.friend_id || '').trim(); if (!id) continue;
     const m = Extended.friends[id] || {};
     list.push({ id, name: m.name || null, username: m.username || null, avatar: m.avatar || null,
@@ -681,7 +681,7 @@ export function refreshExtended() {
 }
 
 /* ---------------- Stats ----------------
-   stats-prod-cache.csv holds Go-serialized `map[...]` blobs of precomputed stats:
+   stats-prod-cache holds Go-serialized `map[...]` blobs of precomputed stats:
    biggest marathons, and episode/movie counts + hours per month. */
 export function goMaps(s) {   // split "map[..] map[..]" into inner strings, depth-aware
   const out = []; let i = 0;
@@ -702,7 +702,7 @@ export function goArray(blob, key) {   // content of "key:[ ... ]", depth-aware
 }
 
 export function buildStats() {
-  const cache = T('stats-prod-cache.csv');
+  const cache = T('stats-prod-cache');
   const blob = (type) => (cache.find(r => r.type === type) || {}).stats || '';
   const epW = blob('episode-watched'), mvW = blob('movie-watched');
 
@@ -736,7 +736,7 @@ export function buildStats() {
    Headline numbers primarily from the tracking-stats row (authoritative totals),
    with everything else counted from the curated datasets above. */
 export function buildOverview(m) {
-  const statsRow = T('tracking-prod-records-v2.csv').find(r => r.key === 'tracking-stats') || {};
+  const statsRow = T('tracking-prod-records-v2').find(r => r.key === 'tracking-stats') || {};
   const epFromStats = toNum(statsRow.ep_watch_count);
   const movieFromStats = toNum(statsRow.movie_watch_count);
 

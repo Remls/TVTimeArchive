@@ -83,7 +83,7 @@ async function readCsvTables(zip) {
   showLoading(`Parsing ${csvEntries.length} CSV files…`);
   const tables = {};
   for (const entry of csvEntries) {
-    const base = entryPath(entry).split('/').pop();    // strip any folder prefix
+    const base = entryPath(entry).split('/').pop().replace(/\.csv$/i, '');   // no folder prefix, no extension
     const parsed = Papa.parse(await readText(entry), { header: true, skipEmptyLines: 'greedy', dynamicTyping: false });
     tables[base] = { fields: parsed.meta.fields || [], rows: parsed.data || [] };
   }

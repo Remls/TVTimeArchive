@@ -9,7 +9,7 @@ import { buildV3Model } from './model/v3.js';
    model, plus the `format` that produced it.
    ------------------------------------------------------------------- */
 
-export const REFRACT_FILES = ['media.csv', 'episodes.csv', 'lists.csv', 'reviews.csv'];
+export const REFRACT_FILES = ['media', 'episodes', 'lists', 'reviews'];
 
 /* A later Refract release can add sections without bumping the version, so
    the section names decide it when the version string is missing or
@@ -26,7 +26,7 @@ export function buildRefractModel(tables, opts = {}) {
   // partial exports are valid: Refract let you export any subset of its categories back in v1
   const format = detectFormat(tables, opts.manifest);
   if (!format) {
-    const tvtime = tables['user.csv'] || tables['followed_tv_show.csv'];
+    const tvtime = tables['user'] || tables['followed_tv_show'];
     throw Object.assign(
       new Error(tvtime ? 'This is a TV Time export.' : 'This doesn\'t look like a Refract export.'),
       { wrongViewer: true, href: tvtime ? '../' : null });

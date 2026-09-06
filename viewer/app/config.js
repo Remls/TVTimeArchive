@@ -52,13 +52,13 @@ const GROUPS = {
 // viewer instead.
 /* Tables every TV Time export has. Without this check the model builds cleanly
    from an unrelated zip and shows an empty archive rather than saying why. */
-const TVTIME_FILES = ['user.csv', 'followed_tv_show.csv', 'tv_show_rate.csv', 'meme.csv'];
+const TVTIME_FILES = ['user', 'followed_tv_show', 'tv_show_rate', 'meme'];
 
 function buildTvTimeModel(tables, opts = {}) {
   if (!TVTIME_FILES.some(f => tables[f])) {
     // A Refract export announces itself: v3 by its manifest, v1 by its file names.
     const refract = opts.manifest || tables.library
-      || ['media.csv', 'episodes.csv', 'lists.csv', 'reviews.csv'].some(f => tables[f]);
+      || ['media', 'episodes', 'lists', 'reviews'].some(f => tables[f]);
     throw Object.assign(
       new Error(refract ? 'This is a Refract export.' : 'This doesn\'t look like a TV Time export.'),
       { wrongViewer: true, href: refract ? 'refract/' : null });

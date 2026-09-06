@@ -21,7 +21,7 @@ export function buildV1Model(tables) {
   /* ---- media.csv: one entry per row, exact duplicates merged ---- */
   const media = [];
   const byExact = new Map();   // norm(origTitle|title) + type + year -> entry, to merge duplicate rows
-  for (const r of rowsOf(tables, 'media.csv')) {
+  for (const r of rowsOf(tables, 'media')) {
     const originalTitle = val(r.OriginalTitle);
     const title = val(r.Title) || originalTitle;
     if (!title) continue;
@@ -100,7 +100,7 @@ export function buildV1Model(tables) {
   };
 
   const history = [];
-  for (const r of rowsOf(tables, 'episodes.csv')) {
+  for (const r of rowsOf(tables, 'episodes')) {
     const t = val(r.ShowOriginalTitle) || val(r.ShowTitle);
     if (!t) continue;
     const type = val(r.ShowType);
@@ -145,7 +145,7 @@ export function buildV1Model(tables) {
 
   /* ---- reviews.csv ---- */
   const reviews = [];
-  for (const r of rowsOf(tables, 'reviews.csv')) {
+  for (const r of rowsOf(tables, 'reviews')) {
     const t = val(r.OriginalTitle) || val(r.Title);
     if (!t) continue;
     const targetType = val(r.TargetType);
@@ -200,7 +200,7 @@ export function buildV1Model(tables) {
 
   /* ---- lists.csv: one row per item, grouped by list name ---- */
   const listsByName = new Map();
-  for (const r of rowsOf(tables, 'lists.csv')) {
+  for (const r of rowsOf(tables, 'lists')) {
     const name = val(r.ListName);
     if (!name) continue;
     if (!listsByName.has(name)) {
