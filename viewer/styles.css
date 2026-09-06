@@ -212,9 +212,8 @@ a.menu-item { text-decoration: none; }
 .smart-head { display: flex; align-items: center; gap: 7px; font-weight: 600; font-size: .88rem; margin-bottom: 6px; }
 .smart-note p { color: var(--text-dim); font-size: .84rem; line-height: 1.55; margin: 0 0 10px; }
 .smart-note p:last-child { margin-bottom: 0; }
-.rule-list { display: grid; gap: 4px; }
-.rule-row { display: flex; gap: 10px; font-size: .86rem; }
-.rule-key { color: var(--text-dim); min-width: 76px; flex: 0 0 auto; }
+.rule-list { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; font-size: .86rem; }
+.rule-key { color: var(--text-dim); }
 .rule-val { color: var(--text); font-weight: 600; }
 .item-ico { flex: 0 0 auto; align-self: center; width: 34px; display: grid; place-items: center; font-size: 1.5rem; color: var(--text-faint); }
 .menu-head { color: var(--text-faint); font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; padding: 6px 10px 2px; }
