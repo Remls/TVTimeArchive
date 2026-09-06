@@ -5,7 +5,7 @@ import { buildToolbar, emptyState, viewHead } from '../ui/kit.js';
 /* A cell's text. Scalars print as themselves. An array prints its items
    comma-separated, so watchedEpisodes reads "S1E10, S1E7, …" rather than as
    JSON. An object prints as spaced JSON. null and an empty array are blank:
-   ratings alone carries 787 empty arrays, and they say nothing. The column's
+   a section can carry them in bulk, and they say nothing. The column's
    own max-width does the truncating, so the full text is built and the
    browser adds the ellipsis. */
 const spacedJson = (v) => JSON.stringify(v, null, 1).replace(/\n\s*/g, ' ');
@@ -172,7 +172,7 @@ function flattenInto(obj, prefix, out) {
 }
 
 /* toCSV reads its columns off the first row, so every row is given the same
-   keys: `ratings.item` is an object on 37 rows and null on 360. */
+   keys: `ratings.item` is an object on some rows and null on others. */
 function flatRows(rows) {
   const flat = rows.map(r => flattenInto(r, '', {}));
   const cols = [];

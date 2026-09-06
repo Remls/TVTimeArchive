@@ -77,8 +77,8 @@ export const Backup = {
     const db = await this._open();
     let n = 0;
     for (const entry of images) {
-      // Key by folder-namespaced path minus extension, e.g. "comments/450347-marked",
-      // "avatars/123", "characters/63315360". Old flat zips key without a folder.
+      // Key by folder-namespaced path minus extension, e.g. "comments/<id>-marked",
+      // "avatars/<id>", "characters/<id>". Old flat zips key without a folder.
       const key = entry.name.replace(/^\.?\//, '').replace(/\.[^./]+$/, '');
       if (!key) continue;
       const blob = await entry.async('blob');

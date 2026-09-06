@@ -594,10 +594,10 @@ export function buildNotifications() {
 }
 
 /* ---------------- Badges ----------------
-   user_badge, 528 earned badges, but most are the same badge unlocked per show
-   (e.g. "quick-watcher-3" for many series). We group by badge *type* (the slug minus
-   the leading show id) with a count + date range. Art/name for the ~119 that appeared
-   in a badge-unlocked notification; a humanized slug for the rest. */
+   user_badge, one row per earned badge, but most are the same badge unlocked per
+   show (e.g. "quick-watcher-3" for many series). We group by badge *type* (the slug
+   minus the leading show id) with a count + date range. Art/name for the ones that
+   appeared in a badge-unlocked notification; a humanized slug for the rest. */
 export function buildBadges() {
   const rows = T('user_badge');
   // Badge art keyed by full badge_id, from badge-unlocked notifications.

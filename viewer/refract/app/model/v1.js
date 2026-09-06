@@ -4,7 +4,7 @@ import { assignSlugs, buildStats } from './shared.js';
 
 /* -------------------------------------------------------------------
    Refract export format v1. Four CSVs, no numeric ids anywhere:
-   everything joins on (OriginalTitle|Title, Type). media.csv is the spine;
+   everything joins on (OriginalTitle|Title, Type). media is the spine;
    episodes, lists and reviews resolve against it by title.
    ------------------------------------------------------------------- */
 
@@ -18,7 +18,7 @@ const semiList = (v) => val(v) ? val(v).split(';').map(s => s.trim()).filter(Boo
 const kindOf = (type) => (type === 'Movie' ? 'movie' : 'tv');
 
 export function buildV1Model(tables) {
-  /* ---- media.csv: one entry per row, exact duplicates merged ---- */
+  /* ---- media: one entry per row, exact duplicates merged ---- */
   const media = [];
   const byExact = new Map();   // norm(origTitle|title) + type + year -> entry, to merge duplicate rows
   for (const r of rowsOf(tables, 'media')) {
@@ -78,7 +78,7 @@ export function buildV1Model(tables) {
   const movies = media.filter(m => m.isMovie);
   for (const s of shows) { s.episodes = new Map(); s.epWatched = 0; s.watches = 0; s.firstWatched = null; s.lastWatched = null; }
 
-  /* ---- episodes.csv: attach each watch to a show ----
+  /* ---- episodes: attach each watch to a show ----
      A title can exist twice with different release years, and episode rows carry
      no year, so attribution is a heuristic per watch: a show released after the
      watch can't be it; 'planned' entries had no watches; otherwise the show
@@ -143,7 +143,7 @@ export function buildV1Model(tables) {
   assignSlugs(shows);
   assignSlugs(movies);
 
-  /* ---- reviews.csv ---- */
+  /* ---- reviews ---- */
   const reviews = [];
   for (const r of rowsOf(tables, 'reviews')) {
     const t = val(r.OriginalTitle) || val(r.Title);
@@ -174,8 +174,8 @@ export function buildV1Model(tables) {
   }
   reviews.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
 
-  /* ---- unified ratings: reviews.csv carries most, episodes.csv and media.csv
-     add ratings that never got a review row. Review entries win duplicates. ---- */
+  /* ---- unified ratings: reviews carries most, episodes and media add ratings
+     that never got a review row. Review entries win duplicates. ---- */
   const ratings = [];
   const rated = new Set();
   const ratedKey = (target, kind, season, episode) => (target ? target.slug : '?') + SEP + kind + SEP + (season ?? '') + SEP + (episode ?? '');
@@ -198,7 +198,7 @@ export function buildV1Model(tables) {
   }
   ratings.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
 
-  /* ---- lists.csv: one row per item, grouped by list name ---- */
+  /* ---- lists: one row per item, grouped by list name ---- */
   const listsByName = new Map();
   for (const r of rowsOf(tables, 'lists')) {
     const name = val(r.ListName);
